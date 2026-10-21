@@ -2704,6 +2704,7 @@
             </div>
         </div>
         <div id="video-ekyc-intro-row">
+            <div id="vekyc-intro-sched-slot"></div>
             <h3 id="video-ekyc-intro-title" style="margin:4px 0 14px; font-family:'Sora',sans-serif; font-size:1.05rem; color:var(--dark); text-align:center;">🤖 Before we begin</h3>
             <div style="font-size:0.78rem; font-weight:800; color:var(--dark); margin-bottom:8px;" id="video-ekyc-intro-lang-label">Choose Language</div>
             <div style="display:flex; gap:10px; margin-bottom:20px;">
@@ -11606,6 +11607,37 @@ ${specs}
         return true;
     }
     const VEKYC_MISSED_MSG = 'Your scheduled Video eKYC time has passed and you did not join within 10 minutes, so the schedule has been cancelled. Please start again — wait in the queue or schedule a new time.';
+    // ===== Scheduled Video eKYC notice (shown inline on the intro screen and in the wallet eKYC panel; ticks live) =====
+    const VEKYC_NOTE_STYLE = 'margin:0 0 12px;border-radius:12px;padding:10px 12px;font-size:0.76rem;font-weight:700;line-height:1.5;';
+    function vekycSchedNoteText() {
+        const sc = wallet && wallet.videoEkycSchedule; if (!sc) return null;
+        const at = new Date(sc.at).getTime(), now = Date.now();
+        if (now > at + VEKYC_SCHEDULE_GRACE_MS) return null;
+        if (now < at) return { due: false, text: '\ud83d\udcc5 Video eKYC scheduled for ' + vekycFmtWhen(sc.at) + '. Join within 10 minutes of the start time, otherwise the schedule will be cancelled and you will have to schedule again.' };
+        return { due: true, text: '\u23f0 Your scheduled Video eKYC is ready \u2014 no waiting. Join within ' + vekycFmtLeft(at + VEKYC_SCHEDULE_GRACE_MS - now) + ' or the schedule will be cancelled and you will have to schedule again.' };
+    }
+    function vekycSchedNoteHtml() {
+        const n = vekycSchedNoteText(); if (!n) return '';
+        return '<div class="vekyc-sched-note" style="' + VEKYC_NOTE_STYLE + (n.due ? 'background:#fef2f2;border:1px solid #fecaca;color:#991b1b;' : 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;') + '">' + n.text + '</div>';
+    }
+    function vekycTickSchedNotes() {
+        try {
+            const had = !!(wallet && wallet.videoEkycSchedule);
+            if (had && vekycPurgeMissedSchedule()) {
+                document.querySelectorAll('.vekyc-sched-note').forEach(e => e.remove());
+                const modalOpen = document.getElementById('video-ekyc-modal').classList.contains('modal-open'), mainOn = document.getElementById('video-ekyc-main-content').style.display === 'block';
+                if (modalOpen && !mainOn) { alert(VEKYC_MISSED_MSG); vekycShowWaitScreen(); }
+                return;
+            }
+            const n = vekycSchedNoteText();
+            document.querySelectorAll('.vekyc-sched-note').forEach(e => {
+                if (!n) { e.remove(); return; }
+                e.textContent = n.text;
+                e.style.background = n.due ? '#fef2f2' : '#f0fdf4'; e.style.borderColor = n.due ? '#fecaca' : '#bbf7d0'; e.style.color = n.due ? '#991b1b' : '#166534';
+            });
+        } catch (e) {}
+    }
+    setInterval(vekycTickSchedNotes, 1000);
     function vekycHideAllScreens() {
         ['video-ekyc-wait-row', 'video-ekyc-sched-row', 'video-ekyc-schedinfo-row', 'video-ekyc-intro-row', 'video-ekyc-main-content'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
         if (_vekycWaitTimer) { clearInterval(_vekycWaitTimer); _vekycWaitTimer = null; }
@@ -11707,7 +11739,7 @@ ${specs}
             document.getElementById('vekyc-sb-x').onclick = () => { _vekycSchedNotified = sc.at; b.remove(); };
         } catch (e) {}
     }
-    setInterval(vekycCheckScheduleDue, 20000);
+    setInterval(vekycCheckScheduleDue, 2000);
     function startVideoEkyc(mode, skipWait) {
         _vekycMode = mode || 'setup';
         refreshWalletFromStorage();
@@ -11730,6 +11762,7 @@ ${specs}
     // same one or two names don't keep repeating.
     function vekycShowIntroScreen() {
         vekycHideAllScreens();
+        { const slot = document.getElementById('vekyc-intro-sched-slot'); if (slot) slot.innerHTML = vekycSchedNoteHtml(); }
         const t = VEKYC_I18N[_vekycLang];
         document.getElementById('video-ekyc-intro-row').style.display = 'block';
         document.getElementById('video-ekyc-main-content').style.display = 'none';
@@ -13609,6 +13642,7 @@ function subAskAutoRenew(req, cb){
             '<div class="wallet-info-panel deactivated">' +
                 '<div class="wallet-info-head">📇 eKYC Verification Required</div>' +
                 '<p>The Super Admin has requested eKYC verification for this wallet. Please confirm your details below to continue using it normally.</p>' +
+                vekycSchedNoteHtml() +
                 '<button class="wallet-full-btn primary" onclick="startVideoEkyc(\'reverify\')">📇 Complete Video eKYC Verification</button>' +
             '</div>';
     }
