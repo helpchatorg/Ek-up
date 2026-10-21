@@ -2679,7 +2679,7 @@
         </div>
         <div id="video-ekyc-sched-row" style="display:none;">
             <h3 style="margin:4px 0 6px; font-family:'Sora',sans-serif; font-size:1.05rem; color:var(--dark); text-align:center;">📅 Schedule Video eKYC</h3>
-            <div style="font-size:0.74rem; color:#475569; line-height:1.55; margin-bottom:12px;">Pick a date and time when you will be free, alone, in a quiet place with good light. Your session will be ready at that time with no waiting.</div>
+            <div style="font-size:0.74rem; color:#475569; line-height:1.55; margin-bottom:12px;">Pick a date and time when you will be free, alone, in a quiet place with good light. Your session will be ready at that time with no waiting. <b>You must join within 10 minutes of the scheduled time — otherwise the schedule is cancelled and you will have to schedule again.</b></div>
             <div class="input-group"><label>Date &amp; time</label><input type="datetime-local" id="vekyc-sched-input"><div class="error-msg" id="err-vekyc-sched" style="display:none;"></div></div>
             <div id="vekyc-sched-hint" style="font-size:0.66rem; color:#64748b; line-height:1.5; margin:-4px 0 12px;"></div>
             <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:9px 11px; font-size:0.68rem; color:#9a3412; line-height:1.5; margin-bottom:12px;">Scheduling does not extend any eKYC deadline or cooldown that already applies to your wallet.</div>
@@ -11022,6 +11022,7 @@
                 openWalletEkycCooldownModal();
                 return;
             }
+            if (typeof vekycPurgeMissedSchedule === 'function' && vekycPurgeMissedSchedule()) alert(VEKYC_MISSED_MSG);
             if (wallet.videoEkycSchedule && wallet.setup && wallet.setup.details) { startVideoEkyc(wallet.videoEkycSchedule.mode || 'setup'); return; }
             openWalletSetupModal();
             return;
@@ -11595,6 +11596,16 @@ ${specs}
     // ===== Video eKYC waiting room + scheduling =====
     let _vekycWaitTimer = null, _vekycWakeLock = null, _vekycSchedNotified = '';
     const VEKYC_WAIT_OPTIONS_MIN = [5, 10, 15, 30, 40, 50, 60];
+    const VEKYC_SCHEDULE_GRACE_MS = 10 * 60000; // a scheduled session must be joined within 10 minutes of its start time
+    // Returns true (and removes the schedule) if the scheduled slot was missed.
+    function vekycPurgeMissedSchedule() {
+        const sc = wallet && wallet.videoEkycSchedule;
+        if (!sc || Date.now() <= new Date(sc.at).getTime() + VEKYC_SCHEDULE_GRACE_MS) return false;
+        delete wallet.videoEkycSchedule; persistWalletOnly();
+        const sb = document.getElementById('vekyc-sched-banner'); if (sb) sb.remove();
+        return true;
+    }
+    const VEKYC_MISSED_MSG = 'Your scheduled Video eKYC time has passed and you did not join within 10 minutes, so the schedule has been cancelled. Please start again — wait in the queue or schedule a new time.';
     function vekycHideAllScreens() {
         ['video-ekyc-wait-row', 'video-ekyc-sched-row', 'video-ekyc-schedinfo-row', 'video-ekyc-intro-row', 'video-ekyc-main-content'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
         if (_vekycWaitTimer) { clearInterval(_vekycWaitTimer); _vekycWaitTimer = null; }
@@ -11661,13 +11672,16 @@ ${specs}
         document.getElementById('video-ekyc-schedinfo-row').style.display = 'block';
         document.getElementById('vekyc-schedinfo-when').textContent = vekycFmtWhen(sc.at);
         const tick = () => {
+            if (vekycPurgeMissedSchedule()) { alert(VEKYC_MISSED_MSG); vekycShowWaitScreen(); return; }
             const left = new Date(sc.at).getTime() - Date.now(), b = document.getElementById('vekyc-schedinfo-start');
-            document.getElementById('vekyc-schedinfo-left').textContent = left > 0 ? 'Starts in ' + vekycFmtLeft(left) + ' — a reminder will appear when it is time.' : 'It is time — your session is ready, no waiting.';
+            const rem = Math.max(0, new Date(sc.at).getTime() + VEKYC_SCHEDULE_GRACE_MS - Date.now());
+            document.getElementById('vekyc-schedinfo-left').textContent = left > 0 ? 'Starts in ' + vekycFmtLeft(left) + ' — a reminder will appear when it is time. Please join within 10 minutes of the start time or the schedule is cancelled.' : 'It is time — start now! Schedule cancels in ' + vekycFmtLeft(rem) + ' if you do not join.';
             b.disabled = left > 0; b.style.opacity = left > 0 ? '.45' : '1'; b.style.cursor = left > 0 ? 'not-allowed' : 'pointer';
         };
         tick(); _vekycWaitTimer = setInterval(tick, 1000);
     }
     function vekycStartScheduledNow() {
+        if (vekycPurgeMissedSchedule()) { alert(VEKYC_MISSED_MSG); vekycShowWaitScreen(); return; }
         const sc = wallet.videoEkycSchedule; if (!sc || new Date(sc.at).getTime() > Date.now()) return;
         vekycHideAllScreens(); _vekycMode = sc.mode || _vekycMode; vekycShowIntroScreen();
     }
@@ -11681,12 +11695,13 @@ ${specs}
             if (typeof _activeAdminId === 'undefined' || !_activeAdminId) return;
             const raw = localStorage.getItem(activeDbKey()); if (!raw) return;
             const w = (JSON.parse(raw) || {}).wallet, sc = w && w.videoEkycSchedule;
+            if (sc && Date.now() > new Date(sc.at).getTime() + VEKYC_SCHEDULE_GRACE_MS) { delete w.videoEkycSchedule; const d0 = JSON.parse(raw); d0.wallet = w; localStorage.setItem(activeDbKey(), JSON.stringify(d0)); try { wallet.videoEkycSchedule = undefined; delete wallet.videoEkycSchedule; } catch (e2) {} const ob = document.getElementById('vekyc-sched-banner'); if (ob) ob.remove(); return; }
             const old = document.getElementById('vekyc-sched-banner');
             if (!sc || new Date(sc.at).getTime() > Date.now() || document.getElementById('video-ekyc-modal').classList.contains('modal-open')) { if (old && !sc) old.remove(); return; }
             if (old || _vekycSchedNotified === sc.at) return;
             const b = document.createElement('div'); b.id = 'vekyc-sched-banner';
-            b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:14px;z-index:9700;max-width:460px;margin:0 auto;background:#4c1d95;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:0.8rem;font-weight:700;display:flex;align-items:center;gap:10px;';
-            b.innerHTML = '<span style="flex:1;">⏰ Your scheduled Video eKYC is ready — no waiting.</span><button type="button" style="background:#fff;color:#4c1d95;border:none;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer;" id="vekyc-sb-go">Start</button><button type="button" style="background:transparent;color:#ddd6fe;border:none;font-weight:800;cursor:pointer;" id="vekyc-sb-x">Later</button>';
+            b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:14px;z-index:9700;max-width:460px;margin:0 auto;background:#4c1d95;color:#fff;border-radius:14px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:0.82rem;font-weight:700;display:flex;flex-direction:column;gap:10px;';
+            b.innerHTML = '<div style="line-height:1.5;">\u23f0 Your scheduled Video eKYC is ready \u2014 join within 10 minutes or it is cancelled.</div><div style="display:flex;gap:10px;"><button type="button" style="flex:1;background:#fff;color:#4c1d95;border:none;border-radius:10px;padding:10px;font-weight:800;cursor:pointer;" id="vekyc-sb-go">Start</button><button type="button" style="flex:1;background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:10px;padding:10px;font-weight:800;cursor:pointer;" id="vekyc-sb-x">Later</button></div>';
             document.body.appendChild(b);
             document.getElementById('vekyc-sb-go').onclick = () => { _vekycSchedNotified = sc.at; b.remove(); refreshWalletFromStorage(); startVideoEkyc(sc.mode || 'setup'); };
             document.getElementById('vekyc-sb-x').onclick = () => { _vekycSchedNotified = sc.at; b.remove(); };
@@ -11699,6 +11714,7 @@ ${specs}
         _vekycLang = 'en';
         _vekycAiGender = 'female';
         document.getElementById('video-ekyc-modal').classList.add('modal-open');
+        if (vekycPurgeMissedSchedule()) alert(VEKYC_MISSED_MSG);
         const sch = wallet.videoEkycSchedule;
         if (sch) {
             if (new Date(sch.at).getTime() <= Date.now()) { _vekycMode = sch.mode || _vekycMode; vekycShowIntroScreen(); return; } // scheduled time reached: no waiting
