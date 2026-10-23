@@ -2655,6 +2655,27 @@
 </div>
 
 <!-- ===== WALLET FIRST-TIME SETUP — AI VIDEO eKYC MODAL ===== -->
+
+<!-- ===== Exit choice: Full Exit or Partial Exit ===== -->
+<div id="exit-choice-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9400;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;">
+    <div style="background:#fff;border-radius:18px;padding:18px;max-width:380px;width:100%;box-sizing:border-box;max-height:90vh;overflow-y:auto;">
+        <div style="font-family:'Sora',sans-serif;font-size:1.02rem;font-weight:800;color:var(--dark);text-align:center;margin-bottom:4px;">🚪 Mark Exit</div>
+        <div style="font-size:0.74rem;color:#64748b;text-align:center;margin-bottom:14px;">Are you leaving for the day, or just stepping out for a while?</div>
+        <button type="button" onclick="beginExitScan('full')" style="width:100%;background:#d97706;color:#fff;border:none;border-radius:12px;padding:12px;font-weight:800;font-size:0.86rem;cursor:pointer;text-align:left;">🚪 Full Exit<div style="font-size:0.68rem;font-weight:600;opacity:.92;margin-top:3px;">Leaving for the day — scan QR + exit selfie. Completes today's attendance.</div></button>
+        <button type="button" id="exit-choice-partial-btn" onclick="beginExitScan('partial')" style="width:100%;background:#eef2ff;color:#3730a3;border:1.5px solid #c7d2fe;border-radius:12px;padding:12px;font-weight:800;font-size:0.86rem;cursor:pointer;text-align:left;margin-top:10px;">🚶 Partial Exit<div style="font-size:0.68rem;font-weight:600;margin-top:3px;color:#4338ca;">Stepping out for a while — scan QR only, no selfie. Only the time is noted.</div></button>
+        <div id="exit-choice-counter" style="margin-top:12px;text-align:center;font-size:0.74rem;font-weight:800;color:#334155;"></div>
+        <button type="button" onclick="closeExitChoiceModal()" style="width:100%;background:#f1f5f9;color:#334155;border:none;border-radius:12px;padding:10px;font-weight:800;margin-top:12px;cursor:pointer;">Cancel</button>
+    </div>
+</div>
+<!-- ===== Partial exit times (history detail) ===== -->
+<div id="partial-exit-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9400;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;" onclick="if(event.target===this)closePartialExitDetail()">
+    <div style="background:#fff;border-radius:18px;padding:18px;max-width:340px;width:100%;box-sizing:border-box;max-height:80vh;overflow-y:auto;">
+        <div style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:800;color:var(--dark);">🚶 Partial Exits</div>
+        <div id="partial-exit-detail-sub" style="font-size:0.72rem;color:#64748b;margin:3px 0 10px;"></div>
+        <div id="partial-exit-detail-list"></div>
+        <button type="button" onclick="closePartialExitDetail()" style="width:100%;background:#f1f5f9;color:#334155;border:none;border-radius:12px;padding:10px;font-weight:800;margin-top:12px;cursor:pointer;">Close</button>
+    </div>
+</div>
 <div id="video-ekyc-modal" class="modal" style="z-index:9550;">
     <div class="modal-content vekyc-modal-content" style="max-height:88vh; overflow-y:auto;">
         <div class="vekyc-ai-badge" id="video-ekyc-modal-title">🤖 AI Video eKYC — Live Session</div>
@@ -3955,7 +3976,8 @@
                 <div id="exit-attendance-box">
                     <div class="exit-timer-msg" id="exit-timer-msg">⏳ Exit attendance will be available after 30 minutes</div>
                     <img id="exit-photo-preview" src="" alt="Exit Photo">
-                    <button id="btn-exit-attendance" onclick="startExitQRScan()" style="background:#d97706;margin-top:8px;" disabled>🔲 Scan QR & Mark Exit</button>
+                    <div id="partial-exit-counter" style="display:none;"></div>
+                    <button id="btn-exit-attendance" onclick="startExitQRScan()" style="background:#d97706;margin-top:8px;" disabled>🚪 Mark Exit (Full / Partial)</button>
                     <div id="exit-status" style="margin-top:8px; font-size:0.78rem; font-weight:700;"></div>
                 </div>
             </div>
@@ -7061,8 +7083,32 @@
         const entryTime = record.entry ? new Date(record.entry.time) : new Date(record.date);
         const minsSinceEntry = Math.floor((Date.now() - entryTime) / 60000);
         if (minsSinceEntry < 30) { alert(`Exit attendance not allowed yet. Please wait ${30 - minsSinceEntry} more minute(s).`); return; }
+        openExitChoiceModal(record);
+    }
+
+    const MAX_PARTIAL_EXITS = 5;
+    let _exitMode = 'full';
+    function getPendingExitRecordToday() {
+        if (!loggedInStudent) return null;
+        const todayStr = getLocalDateStr(new Date().toISOString());
+        return attendances.find(a => a.regNo === loggedInStudent.regNo && getLocalDateStr(a.date) === todayStr && a.attStatus === 'pending_exit') || null;
+    }
+    function openExitChoiceModal(record) {
+        const used = (record.partialExits || []).length, left = MAX_PARTIAL_EXITS - used;
+        document.getElementById('exit-choice-counter').innerHTML = '🚶 Partial exits used today: <span style="color:' + (left > 0 ? '#4338ca' : '#dc2626') + ';">' + used + ' / ' + MAX_PARTIAL_EXITS + '</span>' + (left <= 0 ? '<div style="font-size:0.68rem;color:#dc2626;margin-top:3px;">Limit reached — only Full Exit is possible now.</div>' : '');
+        const pb = document.getElementById('exit-choice-partial-btn');
+        pb.disabled = left <= 0; pb.style.opacity = left <= 0 ? '.45' : '1'; pb.style.cursor = left <= 0 ? 'not-allowed' : 'pointer';
+        document.getElementById('exit-choice-modal').style.display = 'flex';
+    }
+    function closeExitChoiceModal() { document.getElementById('exit-choice-modal').style.display = 'none'; }
+    function beginExitScan(mode) {
+        const record = getPendingExitRecordToday();
+        if (!record) { closeExitChoiceModal(); alert("No pending entry found for today."); return; }
+        if (mode === 'partial' && (record.partialExits || []).length >= MAX_PARTIAL_EXITS) { alert('You have already used all ' + MAX_PARTIAL_EXITS + ' partial exits for today. Please use Full Exit.'); return; }
+        _exitMode = mode === 'partial' ? 'partial' : 'full';
+        closeExitChoiceModal();
         document.getElementById('qr-scanner-modal').classList.add('open');
-        document.getElementById('qr-scan-status').innerText = 'Point camera at the QR code in the library for Exit';
+        document.getElementById('qr-scan-status').innerText = _exitMode === 'partial' ? 'Scan the library QR code to note your Partial Exit (no selfie needed)' : 'Point camera at the QR code in the library for Exit';
         document.getElementById('qr-scan-status').className = 'qr-scan-status';
         if (html5QrCode) {
             try { html5QrCode.stop().catch(()=>{}); } catch(e){}
@@ -7083,6 +7129,33 @@
         });
     }
 
+    function recordPartialExit(token) {
+        const record = getPendingExitRecordToday();
+        const st = document.getElementById('qr-scan-status');
+        if (!record) { closeQRScanner(); alert("No pending entry found for today."); return; }
+        record.partialExits = record.partialExits || [];
+        if (record.partialExits.length >= MAX_PARTIAL_EXITS) { closeQRScanner(); alert('You have already used all ' + MAX_PARTIAL_EXITS + ' partial exits for today.'); return; }
+        const last = record.partialExits[record.partialExits.length - 1];
+        if (last && last.qrToken === token) { st.innerText = '❌ This QR was already used for your last partial exit. Please wait for the new QR code and scan again.'; st.className = 'qr-scan-status error'; return; }
+        const now = new Date();
+        record.partialExits.push({ time: now.toISOString(), qrToken: token });
+        saveToLocal(); closeQRScanner(); renderStudentDashboard();
+        const left = MAX_PARTIAL_EXITS - record.partialExits.length;
+        alert('🚶 Partial Exit noted at ' + formatAppTime(now.toISOString()) + '.\n\nPartial exits used: ' + record.partialExits.length + ' of ' + MAX_PARTIAL_EXITS + (left ? ' (' + left + ' left)' : ' (no more left today)') + '.\n\nRemember: when you leave for the day, mark your Full Exit — otherwise today\'s attendance stays incomplete.');
+    }
+    function partialChipHtml(a) {
+        const n = (a.partialExits || []).length; if (!n) return '';
+        return '<div style="margin-top:4px;"><button type="button" onclick="showPartialExits(\'' + a.regNo + '\',\'' + a.date + '\')" style="width:auto;margin:0;padding:2px 9px;border-radius:12px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font-size:0.62rem;font-weight:800;cursor:pointer;line-height:1.5;">🚶 ' + n + ' partial exit' + (n > 1 ? 's' : '') + '</button></div>';
+    }
+    function showPartialExits(regNo, dateIso) {
+        const a = attendances.find(x => x.regNo === regNo && x.date === dateIso); if (!a) return;
+        const list = a.partialExits || [];
+        document.getElementById('partial-exit-detail-sub').textContent = (a.name || regNo) + ' • ' + formatAppDate(a.date) + ' • ' + list.length + ' of ' + MAX_PARTIAL_EXITS + ' used';
+        document.getElementById('partial-exit-detail-list').innerHTML = list.map((p, i) => '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:6px;font-size:0.78rem;"><span style="font-weight:800;color:#3730a3;">Out #' + (i + 1) + '</span><span style="font-weight:700;">' + formatAppTime(p.time) + '</span></div>').join('') || '<div style="color:#94a3b8;font-size:0.76rem;">No partial exits.</div>';
+        document.getElementById('partial-exit-detail-modal').style.display = 'flex';
+    }
+    function closePartialExitDetail() { document.getElementById('partial-exit-detail-modal').style.display = 'none'; }
+
     function onExitQRScanned(decodedText) {
         try {
             const data = JSON.parse(decodedText);
@@ -7092,6 +7165,7 @@
                 document.getElementById('qr-scan-status').className = 'qr-scan-status error';
                 return;
             }
+            if (_exitMode === 'partial') { recordPartialExit(data.token); return; }
             scannedQRToken = data.token;
             document.getElementById('qr-scan-status').innerText = '✅ QR Valid! Opening camera for exit photo...';
             document.getElementById('qr-scan-status').className = 'qr-scan-status success';
@@ -8163,8 +8237,12 @@
                     setTimeout(() => { renderStudentDashboard(); }, minsLeft * 60000);
                 } else {
                     if (btnExit) { btnExit.disabled = false; btnExit.style.background = "#d97706"; }
-                    if (exitTimerMsg) exitTimerMsg.innerHTML = `🚪 You can now scan QR & Mark Exit`;
+                    if (exitTimerMsg) exitTimerMsg.innerHTML = `🚪 You can now mark a <strong>Full Exit</strong> or a <strong>Partial Exit</strong>`;
                 }
+                { const pc = document.getElementById('partial-exit-counter'), used = (done.partialExits || []).length;
+                  if (pc) { pc.style.display = 'flex'; pc.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:7px 10px;margin:6px 0 2px;font-size:0.72rem;font-weight:800;color:#3730a3;';
+                    pc.innerHTML = '<span>🚶 Partial exits today</span><span>' + Array.from({ length: MAX_PARTIAL_EXITS }, (_, i) => '<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:3px;background:' + (i < used ? '#4f46e5' : '#c7d2fe') + ';"></i>').join('') + ' <b style="margin-left:6px;">' + used + '/' + MAX_PARTIAL_EXITS + '</b></span>'
+                      + (used ? '<div style="flex-basis:100%;text-align:left;font-size:0.64rem;font-weight:700;color:#4338ca;">Last out: ' + formatAppTime(done.partialExits[used - 1].time) + '</div>' : ''); pc.style.flexWrap = 'wrap'; } }
             }
             if (exitStatus) exitStatus.innerHTML = '';
         } else if (done && done.attStatus === 'invalid') {
@@ -8242,7 +8320,7 @@
             else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
             else statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
-            tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + statusHtml + '</td>';
+            tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + statusHtml + partialChipHtml(a) + '</td>';
             attBody.appendChild(tr);
         });
         // Attendance See More button
@@ -8814,7 +8892,7 @@
                 <td>${entryPhotoHtml}</td>
                 <td>${exitPhotoHtml}</td>
                 <td>${qrBadge}</td>
-                <td>${statusHtml}</td>`;
+                <td>${statusHtml}${partialChipHtml(a)}</td>`;
             tbody.appendChild(tr);
         });
         if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:20px;">No attendance records found.</td></tr>';
@@ -20591,6 +20669,37 @@ The **Library Lost & Found service is provided free of charge**. The Library doe
   window.SamPolicy._publish = _publish;
 })();
 
+
+// ===== Search bars for wallet / subscription / log lists (filters the rows already on screen; re-applies after every refresh) =====
+function wlSetupSearch(hostId, rowSel, placeholder){
+    const host = document.getElementById(hostId); if (!host || host.dataset.wlSearch) return;
+    host.dataset.wlSearch = '1';
+    const wrap = document.createElement('div'); wrap.style.cssText = 'margin:0 0 8px;';
+    wrap.innerHTML = '<input type="search" autocomplete="off" placeholder="' + placeholder + '" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:0.78rem;background:#fff;color:#0f172a;margin:0;">' +
+        '<div class="wl-none" style="display:none;text-align:center;color:#64748b;font-size:0.74rem;padding:8px 0 2px;">No matching records found.</div>';
+    host.parentNode.insertBefore(wrap, host);
+    const inp = wrap.querySelector('input'), none = wrap.querySelector('.wl-none');
+    let busy = false;
+    const apply = () => {
+        if (busy) return; busy = true;
+        const q = inp.value.trim().toLowerCase(); let shown = 0, total = 0;
+        host.querySelectorAll(rowSel).forEach(r => { total++; const m = !q || r.textContent.toLowerCase().includes(q); r.style.display = m ? '' : 'none'; if (m) shown++; });
+        host.querySelectorAll('.wallet-epoch-divider').forEach(d => { d.style.display = q ? 'none' : ''; });
+        none.style.display = (q && total && !shown) ? 'block' : 'none';
+        busy = false;
+    };
+    inp.addEventListener('input', apply);
+    new MutationObserver(apply).observe(host, { childList: true, subtree: true });
+}
+function wlInitSearchBars(){
+    wlSetupSearch('admin-wallet-tx-list', ':scope > div', '🔍 Search transactions (Txn ID, amount, date, note…)');
+    wlSetupSearch('admin-wallet-lock-history', '.wallet-history-row', '🔍 Search log (action, date, eKYC…)');
+    wlSetupSearch('admin-wallet-charge-requests', '.wallet-history-row', '🔍 Search subscription history (Txn ID, amount, date…)');
+    wlSetupSearch('sa-wallet-tx-list', ':scope > div:not(.wallet-epoch-divider)', '🔍 Search transactions (Txn ID, amount, date, note…)');
+    wlSetupSearch('sa-wallet-lock-history-panel', ':scope > div > div:not(.wallet-epoch-divider)', '🔍 Search log (action, date, eKYC…)');
+    wlSetupSearch('sa-wallet-charge-requests', ':scope > div', '🔍 Search subscription history (Txn ID, amount, date…)');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wlInitSearchBars); else wlInitSearchBars();
 </script>
 </body>
 </html>
