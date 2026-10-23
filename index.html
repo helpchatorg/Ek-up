@@ -12995,6 +12995,7 @@ function openWalletEkycCooldownModal() {
             .sort((a, b) => new Date(b.date) - new Date(a.date));
         if (pastCombined.length) {
             html += '<div style="font-size:0.8rem;font-weight:800;margin:16px 0 8px;">🧾 Renewal Request History</div>';
+            html += '<div id="admin-sub-search-slot"></div>';
             html += '<div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:14px;padding:4px 10px;">' +
                 walletWithEpochDividers(pastCombined, rq => {
                     const badgeClass = rq.status === 'Rejected' ? 'bad' : 'good';
@@ -13020,6 +13021,23 @@ function openWalletEkycCooldownModal() {
             html += '<div class="wallet-history-empty">🧾 No renewal requests yet.</div>';
         }
         host.innerHTML = html;
+        wlMountAdminSubSearch(host);
+    }
+    // Search bar sits right above the Renewal Request History list (re-created on every render, query is kept).
+    let _adminSubSearchQ = '';
+    function wlMountAdminSubSearch(host) {
+        const slot = host.querySelector('#admin-sub-search-slot'); if (!slot) return;
+        slot.innerHTML = '<input type="search" autocomplete="off" placeholder="🔍 Search history (Txn ID, amount, date…)" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:0.78rem;background:#fff;color:#0f172a;margin:0 0 8px;"><div class="wl-none" style="display:none;text-align:center;color:#64748b;font-size:0.74rem;padding:0 0 8px;">No matching records found.</div>';
+        const inp = slot.querySelector('input'), none = slot.querySelector('.wl-none');
+        inp.value = _adminSubSearchQ;
+        const apply = () => {
+            _adminSubSearchQ = inp.value;
+            const q = inp.value.trim().toLowerCase(); let shown = 0, total = 0;
+            host.querySelectorAll('.wallet-history-row').forEach(r => { total++; const m = !q || r.textContent.toLowerCase().includes(q); r.style.display = m ? '' : 'none'; if (m) shown++; });
+            host.querySelectorAll('.wallet-epoch-divider').forEach(d => { d.style.display = q ? 'none' : ''; });
+            none.style.display = (q && total && !shown) ? 'block' : 'none';
+        };
+        inp.addEventListener('input', apply); apply();
     }
     // ===== SUBSCRIPTION CARD + INVOICE (shared logic) =====
 function subEsc(t){ return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -20694,7 +20712,6 @@ function wlSetupSearch(hostId, rowSel, placeholder){
 function wlInitSearchBars(){
     wlSetupSearch('admin-wallet-tx-list', ':scope > div', '🔍 Search transactions (Txn ID, amount, date, note…)');
     wlSetupSearch('admin-wallet-lock-history', '.wallet-history-row', '🔍 Search log (action, date, eKYC…)');
-    wlSetupSearch('admin-wallet-charge-requests', '.wallet-history-row', '🔍 Search subscription history (Txn ID, amount, date…)');
     wlSetupSearch('sa-wallet-tx-list', ':scope > div:not(.wallet-epoch-divider)', '🔍 Search transactions (Txn ID, amount, date, note…)');
     wlSetupSearch('sa-wallet-lock-history-panel', ':scope > div > div:not(.wallet-epoch-divider)', '🔍 Search log (action, date, eKYC…)');
     wlSetupSearch('sa-wallet-charge-requests', ':scope > div', '🔍 Search subscription history (Txn ID, amount, date…)');
