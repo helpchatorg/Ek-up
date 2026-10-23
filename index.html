@@ -7143,9 +7143,9 @@
         const left = MAX_PARTIAL_EXITS - record.partialExits.length;
         alert('🚶 Partial Exit noted at ' + formatAppTime(now.toISOString()) + '.\n\nPartial exits used: ' + record.partialExits.length + ' of ' + MAX_PARTIAL_EXITS + (left ? ' (' + left + ' left)' : ' (no more left today)') + '.\n\nRemember: when you leave for the day, mark your Full Exit — otherwise today\'s attendance stays incomplete.');
     }
-    function partialChipHtml(a) {
+    function partialChipHtml(a, inline) {
         const n = (a.partialExits || []).length; if (!n) return '';
-        return '<div style="margin-top:4px;"><button type="button" onclick="showPartialExits(\'' + a.regNo + '\',\'' + a.date + '\')" style="width:auto;margin:0;padding:2px 9px;border-radius:12px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font-size:0.62rem;font-weight:800;cursor:pointer;line-height:1.5;">🚶 ' + n + ' partial exit' + (n > 1 ? 's' : '') + '</button></div>';
+        return '<' + (inline ? 'span style="margin-left:6px;vertical-align:middle;"' : 'div style="margin-top:4px;"') + '><button type="button" onclick="showPartialExits(\'' + a.regNo + '\',\'' + a.date + '\')" style="width:auto;margin:0;padding:2px 9px;border-radius:12px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font-size:0.62rem;font-weight:800;cursor:pointer;line-height:1.5;">🚶 ' + n + ' partial exit' + (n > 1 ? 's' : '') + '</button></' + (inline ? 'span' : 'div') + '>';
     }
     function showPartialExits(regNo, dateIso) {
         const a = attendances.find(x => x.regNo === regNo && x.date === dateIso); if (!a) return;
@@ -8892,7 +8892,7 @@
                 <td>${entryPhotoHtml}</td>
                 <td>${exitPhotoHtml}</td>
                 <td>${qrBadge}</td>
-                <td>${statusHtml}${partialChipHtml(a)}</td>`;
+                <td style="white-space:nowrap;">${statusHtml}${partialChipHtml(a, true)}</td>`;
             tbody.appendChild(tr);
         });
         if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:20px;">No attendance records found.</td></tr>';
