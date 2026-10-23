@@ -2219,6 +2219,11 @@
                 <div class="error-msg" id="err-demo-dob">Date of Birth required</div>
             </div>
         </div>
+        <div id="demo-seat-area" style="display:none; background:#f0fdfa; border:1px solid #99f6e4; border-radius:10px; padding:14px; margin-bottom:15px;">
+            <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:6px;">🔓 Seat was freed — choose a seat</div>
+            <select id="demo-seat-select" style="width:100%; margin:0;"></select>
+            <div class="error-msg" id="err-demo-seat">Please choose a seat</div>
+        </div>
         <div style="background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:15px;">
             <div style="font-size:0.78rem; font-weight:800; color:var(--dark); margin-bottom:10px;">Payment Details (Mandatory)</div>
             <div class="input-group" style="margin-bottom:8px;">
@@ -2258,7 +2263,11 @@
                 </div>
             </div>
         </div>
-        <button onclick="confirmDemoToFull()" style="background:#10b981;">✅ Confirm Registration</button>
+        <button id="demo-confirm-btn" onclick="confirmDemoToFull()" style="background:#10b981;">✅ Confirm Registration</button>
+        <div id="demo-wl-box" style="display:none; margin-top:8px;">
+            <div style="font-size:0.74rem; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; margin-bottom:8px; line-height:1.5;">⛔ No seat is available in this shift right now. You can add this student to the Waiting List — a seat is allotted automatically when one becomes free.</div>
+            <button onclick="demoToWaitlist()" style="background:#f59e0b;">⏳ Add to Waiting List</button>
+        </div>
         <button onclick="closeDemoConfirmModal()" style="background:#94a3b8; margin-top:8px;">Cancel</button>
     </div>
 </div>
@@ -3753,10 +3762,10 @@
                 <div class="filter-tabs">
                     <div class="filter-tab active" onclick="setHistoryFilter('all', this)">All</div>
                     <div class="filter-tab" id="hist-newreg-tab" onclick="setHistoryFilter('newreg', this)">New Registrations<span id="hist-newreg-count" style="display:none;margin-left:5px;background:#dc2626;color:#fff;border-radius:20px;padding:1px 7px;font-size:0.62rem;font-weight:800;"></span></div>
+                    <div class="filter-tab" onclick="setHistoryFilter('attendance', this)">Attendance</div>
                     <div class="filter-tab" onclick="setHistoryFilter('paid', this)">Paid</div>
                     <div class="filter-tab" onclick="setHistoryFilter('pending', this)">Pending</div>
                     <div class="filter-tab" onclick="setHistoryFilter('demo', this)">Demo</div>
-                    <div class="filter-tab" onclick="setHistoryFilter('attendance', this)">Attendance</div>
                 </div>
                 <div id="admin-att-filters" style="display:none; margin-top:10px; gap:6px; flex-wrap:wrap; align-items:center;">
                     <span style="font-size:0.7rem;font-weight:800;color:var(--grey);">Filter:</span>
@@ -7353,7 +7362,60 @@
         showSaEndNote({ reason: 'demo', text: noWindow ? 'You were logged out automatically because no access time is set for this demo account. Please contact the Super Admin.' : 'You were logged out automatically because the demo account access time has ended.' });
     }
 
-    window.onload = function() { migrateOldSharedDbIfNeeded(); loadLoginAttempts(); restoreSessionFromStorage(); setInterval(checkDemoExpiry, 60000); setInterval(checkAdminDemoExpiryLive, 5000); scheduleAutoInvalidate(); setInterval(checkForSaAccessRequest, 5000); setInterval(checkForStudentAccessRequest, 5000); checkLFAutoDispose(); setInterval(checkLFAutoDispose, 3600000); }
+    // ===== AUTOMATIC ATTENDANCE RECONCILIATION =====
+    // Runs by itself (every 15 s while any page of this library is open, plus once on every load) — no student login needed.
+    // Entry + Exit both marked  -> stays PRESENT.
+    // Entry marked, Exit not    -> becomes ABSENT as soon as the shift ends.
+    // Nothing marked            -> ABSENT (or HOLIDAY on a disabled/holiday day) as soon as the shift ends.
+    // Days that passed while nobody had the app open are caught up automatically (up to 30 days back, never before the student's registration date).
+    function attRank(a) { return a.attStatus === 'completed' ? 4 : (a.attStatus === 'pending_exit' ? 3 : (a.status === 'PRESENT' ? 3 : (a.attStatus === 'invalid' ? 2 : 1))); }
+    function reconcileAttendanceAll() {
+        try {
+            if (!_activeAdminId || !Array.isArray(students) || !Array.isArray(attendances) || !config || !Array.isArray(config.shifts)) return;
+            // 1) pick up attendance written by another open tab/page so nothing is overwritten
+            try {
+                const raw = localStorage.getItem(activeDbKey());
+                const stored = raw ? (JSON.parse(raw).attendances || []) : [];
+                const map = new Map();
+                attendances.forEach(a => map.set(a.regNo + '|' + a.date, a));
+                stored.forEach(b => { const k = b.regNo + '|' + b.date, a = map.get(k); if (!a) map.set(k, b); else if (attRank(b) > attRank(a) || (attRank(b) === attRank(a) && (b.partialExits || []).length > (a.partialExits || []).length)) map.set(k, b); });
+                if (map.size !== attendances.length || stored.length) attendances = Array.from(map.values());
+            } catch (e) {}
+            const now = new Date(), todayStr = getLocalDateStr(now.toISOString());
+            const curTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const floor = new Date(now); floor.setDate(floor.getDate() - 30);
+            const fromCfg = config.attReconThrough ? new Date(config.attReconThrough + 'T00:00:00') : null;
+            let changed = false;
+            students.forEach(st => {
+                if (st.isDemo || !st.date) return;
+                const sh = config.shifts.find(x => x.id === st.shift); if (!sh || !sh.end) return;
+                let start = new Date(getLocalDateStr(st.date) + 'T00:00:00');
+                const lo = fromCfg && fromCfg > floor ? fromCfg : floor; if (start < lo) start = new Date(lo);
+                for (let d = new Date(start); getLocalDateStr(d.toISOString()) <= todayStr; d.setDate(d.getDate() + 1)) {
+                    const ds = getLocalDateStr(d.toISOString());
+                    if (ds === todayStr && curTime <= sh.end) continue; // shift of today is still running
+                    const recs = attendances.filter(a => a.regNo === st.regNo && getLocalDateStr(a.date) === ds);
+                    const pend = recs.find(a => a.attStatus === 'pending_exit');
+                    if (pend) { pend.attStatus = 'invalid'; changed = true; continue; }
+                    if (recs.length) continue;
+                    const hol = getAttendanceBlockReasonFor(st, ds), when = new Date(ds + 'T' + sh.end + ':00').toISOString();
+                    attendances.push(hol ? { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'HOLIDAY', holidayTitle: hol.title } : { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'ABSENT' });
+                    changed = true;
+                }
+            });
+            const y = new Date(now); y.setDate(y.getDate() - 1); const yStr = getLocalDateStr(y.toISOString());
+            if (config.attReconThrough !== yStr) { config.attReconThrough = yStr; changed = true; }
+            if (changed) {
+                saveToLocal();
+                try { if (loggedInStudent && typeof renderStudentDashboard === 'function') renderStudentDashboard(); } catch (e) {}
+                try { if (historyFilter === 'attendance' && typeof renderAdminAttendance === 'function') renderAdminAttendance(); } catch (e) {}
+            }
+        } catch (e) { /* never block the app */ }
+    }
+    setInterval(reconcileAttendanceAll, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileAttendanceAll(); });
+
+    window.onload = function() { setTimeout(reconcileAttendanceAll, 2500); migrateOldSharedDbIfNeeded(); loadLoginAttempts(); restoreSessionFromStorage(); setInterval(checkDemoExpiry, 60000); setInterval(checkAdminDemoExpiryLive, 5000); scheduleAutoInvalidate(); setInterval(checkForSaAccessRequest, 5000); setInterval(checkForStudentAccessRequest, 5000); checkLFAutoDispose(); setInterval(checkLFAutoDispose, 3600000); }
 
     // Keep the admin/student session alive across a page refresh (within the same browser tab),
     // the same way the Super Admin Control Center already does. Runs once on load, after
@@ -10372,7 +10434,26 @@
     function openDemoConfirmModal(demoId) {
         const s = students.find(x => x.id === demoId); if (!s) return;
         currentDemoConfirmId = demoId;
-        document.getElementById('demo-confirm-student-name').innerText = `${s.name} | Seat ${seatLabel(s.seat)} | ${s.shiftName}`;
+        const seatArea = document.getElementById('demo-seat-area');
+        if (!s.seat) {
+            const sh = config.shifts.find(x => x.id === s.shift);
+            if (!sh) { alert('This shift no longer exists in your configuration.'); return; }
+            const busy = prAdminBusySeats(sh, s.id);
+            const groups = (config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ suffix: '', capacity: config.totalSeats }];
+            let cur = 0, opts = '<option value="">-- Choose a seat --</option>';
+            groups.forEach(g => {
+                const from = cur + 1, to = cur + g.capacity; cur = to; let o = '';
+                for (let n = from; n <= to; n++) o += '<option value="' + n + '"' + (busy.has(n) ? ' disabled' : '') + '>' + prEsc(seatLabel(n)) + (busy.has(n) ? ' (booked)' : '') + '</option>';
+                opts += '<optgroup label="' + (g.suffix ? 'Group ' + prEsc(g.suffix) : 'Seats') + '">' + o + '</optgroup>';
+            });
+            document.getElementById('demo-seat-select').innerHTML = opts;
+            seatArea.style.display = 'block';
+            let anyFree = false; for (let n = 1; n <= cur; n++) if (!busy.has(n)) { anyFree = true; break; }
+            document.getElementById('demo-confirm-btn').style.display = anyFree ? '' : 'none';
+            document.getElementById('demo-wl-box').style.display = anyFree ? 'none' : 'block';
+            if (!anyFree) seatArea.style.display = 'none';
+        } else { seatArea.style.display = 'none'; document.getElementById('demo-confirm-btn').style.display = ''; document.getElementById('demo-wl-box').style.display = 'none'; }
+        document.getElementById('demo-confirm-student-name').innerText = `${s.name} | ${s.seat ? 'Seat ' + seatLabel(s.seat) : 'Seat freed'} | ${s.shiftName}`;
         document.getElementById('demo-edit-name').value = s.name;
         document.getElementById('demo-edit-fname').value = s.fname;
         document.getElementById('demo-edit-mobile').value = s.mobile;
@@ -10419,6 +10500,36 @@
         document.getElementById('demo-other-app-area').style.display = val === 'Other' ? 'block' : 'none';
     }
 
+    function demoToWaitlist() {
+        document.querySelectorAll('.error-msg').forEach(e => e.style.display='none');
+        const s = students.find(x => x.id === currentDemoConfirmId); if (!s || s.seat) return;
+        const sh = config.shifts.find(x => x.id === s.shift); if (!sh) { alert('Shift not found.'); return; }
+        const busy = prAdminBusySeats(sh, s.id); let total = 0;
+        ((config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ capacity: config.totalSeats }]).forEach(g => total += g.capacity);
+        for (let n = 1; n <= total; n++) if (!busy.has(n)) { alert('A seat is available now — please confirm the registration with a seat instead.'); openDemoConfirmModal(s.id); return; }
+        let err = false;
+        const newMobile = document.getElementById('demo-edit-mobile').value.trim(), newEmail = document.getElementById('demo-edit-email').value.trim(), newDob = document.getElementById('demo-edit-dob').value;
+        if (!/^\d{10}$/.test(newMobile)) { document.getElementById('err-demo-mobile').style.display='block'; err=true; }
+        if (!/^\S+@\S+\.\S+$/.test(newEmail)) { document.getElementById('err-demo-email').style.display='block'; err=true; }
+        if (!newDob) { document.getElementById('err-demo-dob').style.display='block'; err=true; }
+        const method = document.getElementById('demo-pay-method').value;
+        let app = document.getElementById('demo-pay-app').value; const txn = document.getElementById('demo-txn-id').value.trim();
+        if (method === 'Online') {
+            if (app === 'Other') { app = document.getElementById('demo-other-app-name').value.trim(); if (!app) { document.getElementById('err-demo-other-app').style.display='block'; err=true; } }
+            if (!txn) { document.getElementById('err-demo-txn').style.display='block'; err=true; }
+        }
+        if (err) return;
+        if ((waitingList || []).some(w => w.status === 'waiting' && String(w.mobile) === String(newMobile) && w.shift === s.shift)) { alert('This mobile number is already on the Waiting List for this shift.'); return; }
+        const wlId = 'WL' + generateUniqueRegDigits(), nowIso = new Date().toISOString();
+        waitingList.push({ id: wlId, name: document.getElementById('demo-edit-name').value.trim() || s.name, fname: document.getElementById('demo-edit-fname').value.trim() || s.fname, mobile: newMobile, email: newEmail, dob: newDob, photo: s.photo, shift: s.shift, shiftName: sh.name, amount: sh.price, mode: method, payApp: method === 'Online' ? app : 'N/A', txnId: method === 'Online' ? txn : 'N/A', requestedAt: nowIso, status: 'waiting', source: 'demo' });
+        students = students.filter(x => x.id !== s.id);
+        saveToLocal(); closeDemoConfirmModal();
+        const pos = waitingList.filter(w => w.status === 'waiting' && w.shift === s.shift).findIndex(w => w.id === wlId) + 1;
+        alert('Added to the Waiting List.\n\nWaiting List ID: ' + wlId + '\nShift: ' + sh.name + '\nPosition (this shift): ' + pos + '\n\nA seat will be allotted automatically when one becomes free.');
+        renderHistory();
+        try { updateWaitlistNotifDot(); } catch (e) {}
+    }
+
     function confirmDemoToFull() {
         document.querySelectorAll('.error-msg').forEach(e => e.style.display='none');
         const s = students.find(x => x.id === currentDemoConfirmId); if (!s) return;
@@ -10431,6 +10542,12 @@
         if (!/^\d{10}$/.test(newMobile)) { document.getElementById('err-demo-mobile').style.display='block'; err=true; }
         if (!/^\S+@\S+\.\S+$/.test(newEmail)) { document.getElementById('err-demo-email').style.display='block'; err=true; }
         if (!newDob) { document.getElementById('err-demo-dob').style.display='block'; err=true; }
+        let newSeat = s.seat;
+        if (!s.seat) {
+            newSeat = parseInt(document.getElementById('demo-seat-select').value, 10);
+            const shX = config.shifts.find(x => x.id === s.shift);
+            if (!newSeat || !shX || prAdminBusySeats(shX, s.id).has(newSeat)) { document.getElementById('err-demo-seat').style.display='block'; err=true; }
+        }
         const method = document.getElementById('demo-pay-method').value;
         let app = document.getElementById('demo-pay-app').value;
         const txn = document.getElementById('demo-txn-id').value.trim();
@@ -10452,14 +10569,14 @@
             mode: method,
             payApp: method==="Online" ? app : "Cash",
             txnId: method==="Online" ? txn : "N/A",
-            status: "PAID", seatAtTime: s.seat, seatLabelAtTime: seatLabel(s.seat), shiftAtTime: s.shiftName
+            status: "PAID", seatAtTime: newSeat, seatLabelAtTime: seatLabel(newSeat), shiftAtTime: s.shiftName
         };
         // Update the student record
         const idx = students.findIndex(x => x.id === currentDemoConfirmId);
         students[idx] = {
             ...s,
             id: newRegNo, regNo: newRegNo,
-            isDemo: false, demoDate: null,
+            isDemo: false, demoDate: null, seat: newSeat,
             name: newName || s.name,
             fname: newFname || s.fname,
             mobile: newMobile, email: newEmail, dob: newDob,
@@ -10469,9 +10586,10 @@
             feeHistory: [feeEntry]
         };
         // Fix db references
+        db[s.shift] = db[s.shift] || [];
         if (db[s.shift]) {
-            db[s.shift] = db[s.shift].filter(n => n !== s.seat);
-            db[s.shift].push(s.seat);
+            db[s.shift] = db[s.shift].filter(n => n !== newSeat);
+            db[s.shift].push(newSeat);
         }
         saveToLocal(); closeDemoConfirmModal();
         alert(`Registration Confirmed!\nRegistration Number: ${newRegNo}`);
@@ -10752,7 +10870,8 @@
                             <strong style="font-size:0.95rem;">${s.name} <span class="demo-badge">DEMO</span></strong>
                             <span style="color:#7c3aed; font-size:0.68rem; font-weight:700;">TRIAL MODE</span>
                         </div>
-                        <p style="font-size:0.78rem; margin:3px 0; color:var(--grey);">Seat ${seatLabel(s.seat)} &nbsp;|&nbsp; ${(()=>{const sh=config.shifts.find(x=>x.id===s.shift);return sh?sh.name:s.shiftName;})()} </p>
+                        <p style="font-size:0.78rem; margin:3px 0; color:var(--grey);">${s.seat ? 'Seat ' + seatLabel(s.seat) : '<b style="color:#0f766e;">Seat freed</b>'} &nbsp;|&nbsp; ${(()=>{const sh=config.shifts.find(x=>x.id===s.shift);return sh?sh.name:s.shiftName;})()} </p>
+                        ${(!s.seat && s.seatFreedInfo) ? `<div class="blocked-badge" style="background:#ccfbf1;color:#0f766e;border-color:#5eead4;">🔓 SEAT FREED (was ${prEsc(s.seatFreedInfo.seatLabel)}) — ${prEsc(s.seatFreedInfo.reason)}</div>` : ''}
                         <p style="font-size:0.72rem; font-weight:800; color:#7c3aed; margin:3px 0;">● Demo Day ${demoDays} of 10 &nbsp;|&nbsp; ${daysLeft} day(s) remaining</p>
                         <p style="font-size:0.68rem; color:#475569; margin:2px 0;">Demo Started: ${formatAppDate(s.demoDate)}</p>
                     </div>
@@ -10761,12 +10880,14 @@
                     <div class="demo-timer-bar"><div class="demo-timer-fill" style="width:${trialProgress}%"></div></div>
                     <div style="font-size:0.68rem; color:#7c3aed; font-weight:700; margin-bottom:8px;">
                         ${canConfirm
-                            ? `✅ Trial period complete — Confirm Registration to activate student`
+                            ? (s.seat ? `✅ Trial period complete — Confirm Registration to activate the student, or free the seat` : `🔓 Seat freed — you can still confirm; a new seat will be chosen`)
                             : `⏳ Trial period: ${3-demoDays} more day(s) until Confirm Registration is available`
                         }
                     </div>
                     ${canConfirm
-                        ? `<button onclick="openDemoConfirmModal('${s.id}')" style="background:#7c3aed; padding:10px; font-size:0.8rem; margin:0;">Confirm Registration →</button>`
+                        ? (s.seat
+                            ? `<div style="display:flex; gap:8px;"><button onclick="openDemoConfirmModal('${s.id}')" style="background:#7c3aed; padding:10px; font-size:0.8rem; margin:0; flex:2; min-width:0;">Confirm Registration →</button><button class="btn-seatfree-h" onclick="openSeatFreeModal('${s.id}')" style="margin:0; flex:1; min-width:0; padding:10px; font-size:0.8rem;">Seat Free</button></div>`
+                            : `<button onclick="openDemoConfirmModal('${s.id}')" style="background:#7c3aed; padding:10px; font-size:0.8rem; margin:0;">Confirm Registration → (choose seat)</button>`)
                         : `<div style="font-size:0.72rem; color:#94a3b8; background:#f8f5ff; padding:8px; border-radius:8px;">Confirm Registration button will appear after <strong>${3-demoDays} more day(s)</strong></div>`
                     }
                     <div style="font-size:0.65rem; color:#dc2626; margin-top:6px; font-weight:700;">⚠ Auto-delete in ${daysLeft} day(s) if not confirmed</div>
@@ -14123,7 +14244,7 @@ function subAskAutoRenew(req, cb){
         const s = students.find(x => x.id === id); if (!s || !s.seat) return;
         tmOpenInputModal({
             icon: '🔓', title: 'Free Seat', type: 'textarea',
-            desc: 'Seat ' + seatLabel(s.seat) + ' (' + (s.shiftName || '') + ') will be freed for other students. ' + s.name + '\'s record, fees and attendance are kept in History.',
+            desc: 'Seat ' + seatLabel(s.seat) + ' (' + (s.shiftName || '') + ') will be freed for other students. ' + (s.isDemo ? s.name + '\'s demo record stays until it is deleted automatically on day 10, but Confirm Registration stays available (you will choose a new seat).' : s.name + '\'s record, fees and attendance are kept in History.'),
             placeholder: 'Reason for freeing this seat (required)…', confirmLabel: 'Free Seat', confirmColor: '#0d9488',
             validator: v => !v ? 'A reason is required.' : null,
             onConfirm: reason => seatFreeStudent(id, reason)
