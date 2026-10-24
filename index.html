@@ -2765,7 +2765,7 @@
             <div class="vekyc-sig-instructions" id="video-ekyc-sig-instructions" style="display:none;">
                 <div class="r"><span class="ic">📝</span><span>Sign on a plain <strong>white paper</strong> using a <strong>black pen</strong> only.</span></div>
                 <div class="r"><span class="ic">📷</span><span>The back camera opens automatically — hold the paper flat, steady and well-lit.</span></div>
-                <div class="r"><span class="ic">🤖</span><span>The AI captures the correct frame automatically the instant your signature is clearly visible.</span></div>
+                <div class="r"><span class="ic">🤖</span><span>When your signature is clearly visible, tap the <strong>Capture Now</strong> button.</span></div>
             </div>
             <div class="vekyc-cam-box">
                 <video id="video-ekyc-cam" autoplay playsinline muted></video>
@@ -2806,12 +2806,12 @@
                 <button type="button" onclick="captureVideoEkycIdNow()" id="video-ekyc-id-manual-btn" style="width:100%; background:#2563eb; color:#fff; font-weight:800; font-size:0.9rem; padding:13px; margin-top:6px; border-radius:12px;">📸 Capture Now</button>
             </div>
             <div id="video-ekyc-signature-row" style="display:none;">
-                <div class="vekyc-sig-status" id="video-ekyc-sig-status">🔍 Looking for your signature…</div>
+                <div class="vekyc-sig-status" id="video-ekyc-sig-status">📝 Hold the signed paper steady, then tap Capture Now</div>
                 <div class="vekyc-sig-preview-wrap" id="video-ekyc-sig-preview-wrap" style="display:none;">
                     <img id="video-ekyc-sig-preview" alt="Captured signature">
                     <button type="button" onclick="retakeVideoEkycSignature()" class="vekyc-sig-retake-btn">↺ Retake Signature</button>
                 </div>
-                <button type="button" onclick="captureVideoEkycSignatureNow()" id="video-ekyc-sig-manual-btn" style="width:100%; background:#eef2ff; color:#4338ca; font-weight:800; font-size:0.78rem; padding:10px; margin-top:2px;">📸 Capture Now</button>
+                <button type="button" onclick="captureVideoEkycSignatureNow()" id="video-ekyc-sig-manual-btn" style="width:100%; background:#2563eb; color:#fff; font-weight:800; font-size:0.9rem; padding:13px; margin-top:6px; border-radius:12px;">📸 Capture Now</button>
             </div>
             <div style="display:flex; gap:10px; margin-top:10px;">
                 <button type="button" id="video-ekyc-cancel-btn" onclick="cancelVideoEkyc()" style="flex:1; background:#f1f5f9; color:#334155; font-weight:800;">Cancel</button>
@@ -11437,8 +11437,8 @@
             readyLine: "Alright, let's get started.",
             codeStep: "Next, a unique verification code is shown on your screen. Please read it and type it below to confirm this is a live session.",
             idStep: (idLabel) => `Please keep your ${idLabel} in front of the phone camera so it is clearly visible, and then click the Capture button. After that, I will verify it.`,
-            sigStep: (n) => `Last step — signature capture. Please sign on a plain white paper using a black pen, then hold it steady facing the back camera. I will capture it automatically the moment your signature is clearly visible.`,
-            sigLooking: '🔍 Looking for your signature…', sigHolding: '✅ Signature found — holding steady, capturing…', sigCaptured: '✅ Signature captured!',
+            sigStep: (n) => `Last step — signature capture. Please sign on a plain white paper using a black pen, then hold it steady facing the back camera. When the signature is clearly visible, tap the Capture Now button.`,
+            sigLooking: '📝 Hold the signed paper steady, then tap Capture Now', sigHolding: '✅ Signature found — holding steady, capturing…', sigCaptured: '✅ Signature captured!',
             sigDoneSpoken: 'Your signature has been captured. You can move ahead now — please tap Next.',
             idPassedSpoken: 'Your document has been verified. You can move ahead now — please tap Next.',
             idFailSpoken: (fields, used, left) => `Sorry, your document verification failed${fields ? ': ' + fields + ' did not match' : ''}. That was attempt ${used} of 3. ` + (left === 1 ? 'You have only 1 attempt left, and this is your last attempt. ' : `You have ${left} attempts left. `) + 'Please keep the document clearly in front of the camera and tap Retake to try again.',
@@ -11461,8 +11461,8 @@
             readyLine: "ठीक है, चलिए शुरू करते हैं।",
             codeStep: "अब, आपकी स्क्रीन पर एक यूनिक वेरिफिकेशन कोड दिखेगा। कृपया उसे पढ़ें और नीचे टाइप करें, ताकि यह कन्फर्म हो सके कि यह एक लाइव सेशन है।",
             idStep: (idLabel, g) => g === 'male' ? `कृपया अपना ${idLabel} फ़ोन के कैमरे के सामने साफ़ दिखाई देने वाले तरीके से रखें और कैप्चर बटन पर क्लिक करें। उसके बाद मैं इसे वेरीफाई करूंगा।` : `कृपया अपना ${idLabel} फ़ोन के कैमरे के सामने साफ़ दिखाई देने वाले तरीके से रखें और कैप्चर बटन पर क्लिक करें। उसके बाद मैं इसे वेरीफाई करूंगी।`,
-            sigStep: (n, g) => g === 'male' ? `आखिरी चरण — हस्ताक्षर कैप्चर। कृपया एक सादे सफ़ेद कागज़ पर काले पेन से हस्ताक्षर करें, फिर उसे बैक कैमरे के सामने स्थिर पकड़ें। जैसे ही आपका हस्ताक्षर साफ़ दिखेगा, मैं उसे अपने आप कैप्चर कर लूंगा।` : `आखिरी चरण — हस्ताक्षर कैप्चर। कृपया एक सादे सफ़ेद कागज़ पर काले पेन से हस्ताक्षर करें, फिर उसे बैक कैमरे के सामने स्थिर पकड़ें। जैसे ही आपका हस्ताक्षर साफ़ दिखेगा, मैं उसे अपने आप कैप्चर कर लूंगी।`,
-            sigLooking: '🔍 आपका हस्ताक्षर ढूंढा जा रहा है…', sigHolding: '✅ हस्ताक्षर मिल गया — स्थिर पकड़ें, कैप्चर हो रहा है…', sigCaptured: '✅ हस्ताक्षर कैप्चर हो गया!',
+            sigStep: (n, g) => g === 'male' ? `आखिरी चरण — हस्ताक्षर कैप्चर। कृपया एक सादे सफ़ेद कागज़ पर काले पेन से हस्ताक्षर करें, फिर उसे बैक कैमरे के सामने स्थिर पकड़ें। जब हस्ताक्षर साफ़ दिखे, तो कैप्चर नाउ बटन दबाएं।` : `आखिरी चरण — हस्ताक्षर कैप्चर। कृपया एक सादे सफ़ेद कागज़ पर काले पेन से हस्ताक्षर करें, फिर उसे बैक कैमरे के सामने स्थिर पकड़ें। जब हस्ताक्षर साफ़ दिखे, तो कैप्चर नाउ बटन दबाएं।`,
+            sigLooking: '📝 हस्ताक्षर वाला कागज़ स्थिर पकड़ें, फिर कैप्चर नाउ दबाएं', sigHolding: '✅ हस्ताक्षर मिल गया — स्थिर पकड़ें, कैप्चर हो रहा है…', sigCaptured: '✅ हस्ताक्षर कैप्चर हो गया!',
             sigDoneSpoken: 'आपका हस्ताक्षर कैप्चर हो गया है। अब आप आगे बढ़ सकते हैं — कृपया नेक्स्ट दबाएं।',
             idPassedSpoken: 'आपका दस्तावेज़ वेरीफाई हो गया है। अब आप आगे बढ़ सकते हैं — कृपया नेक्स्ट दबाएं।',
             idFailSpoken: (fields, used, left) => `क्षमा करें, आपका दस्तावेज़ वेरीफाई नहीं हो पाया${fields ? ': ' + fields + ' मेल नहीं खाया' : ''}। यह तीन में से आपका ${used} नंबर का प्रयास था। ` + (left === 1 ? 'आपके पास सिर्फ़ 1 प्रयास बचा है, और यह आपका आखिरी प्रयास है। ' : `आपके पास ${left} प्रयास बचे हैं। `) + 'कृपया दस्तावेज़ को कैमरे के सामने साफ़ रखें और दोबारा कोशिश के लिए रीटेक दबाएं।',
@@ -11487,7 +11487,7 @@
         'Tap the <strong>Capture</strong> button yourself. The AI verifies the document only after you capture it.': 'कैप्चर बटन पर <strong>खुद क्लिक</strong> करें। कैप्चर के बाद ही एआई दस्तावेज़ को वेरिफाई करेगा।',
         'Sign on a plain <strong>white paper</strong> using a <strong>black pen</strong> only.': 'सादे <strong>सफ़ेद कागज़</strong> पर सिर्फ़ <strong>काले पेन</strong> से हस्ताक्षर करें।',
         'The back camera opens automatically — hold the paper flat, steady and well-lit.': 'बैक कैमरा अपने-आप खुलेगा — कागज़ को सीधा, स्थिर और अच्छी रोशनी में पकड़ें।',
-        'The AI captures the correct frame automatically the instant your signature is clearly visible.': 'हस्ताक्षर साफ़ दिखते ही एआई सही फ्रेम अपने-आप कैप्चर कर लेगा।',
+        'When your signature is clearly visible, tap the <strong>Capture Now</strong> button.': 'हस्ताक्षर साफ़ दिखने पर <strong>कैप्चर नाउ</strong> बटन दबाएं।',
         'Camera preview unavailable — continuing with the AI eKYC questions below.': 'कैमरा प्रीव्यू उपलब्ध नहीं है — नीचे दिए एआई eKYC सवालों के साथ आगे बढ़ रहे हैं।',
         '🔊 Repeat Once Again': '🔊 दोबारा सुनें',
         'Your Answer': 'आपका उत्तर',
@@ -12180,8 +12180,7 @@ ${specs}
         const statusEl = document.getElementById('video-ekyc-sig-status');
         if (statusEl) statusEl.classList.remove('found');
         switchVideoEkycToBackCamera(() => {
-            if (statusEl) statusEl.textContent = VEKYC_I18N[_vekycLang].sigLooking;
-            startVideoEkycSignatureDetection();
+            if (statusEl) statusEl.textContent = VEKYC_I18N[_vekycLang].sigLooking; // manual capture only — no auto-capture
         });
     }
     // Samples small downscaled frames every ~400ms and looks for a frame that is mostly
@@ -12240,7 +12239,7 @@ ${specs}
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         let dataUrl = null;
         try { dataUrl = canvas.toDataURL('image/jpeg', 0.92); } catch (e) { /* canvas tainted or unsupported */ }
-        if (!dataUrl) { alert('Could not capture the signature image. Please try "Capture Now" again.'); startVideoEkycSignatureDetection(); return; }
+        if (!dataUrl) { alert('Could not capture the signature image. Please try "Capture Now" again.'); return; }
         _vekycSignatureImage = dataUrl;
         const preview = document.getElementById('video-ekyc-sig-preview');
         const previewWrap = document.getElementById('video-ekyc-sig-preview-wrap');
@@ -12256,7 +12255,7 @@ ${specs}
         // Signature captured — the back camera is no longer needed for this session.
         if (_vekycStream) { _vekycStream.getTracks().forEach(t => t.stop()); _vekycStream = null; }
     }
-    // Manual fallback in case auto-detection doesn't trigger (unusual lighting/pen/paper).
+    // Manual capture — the user taps Capture Now (no auto-capture).
     function captureVideoEkycSignatureNow() {
         const video = document.getElementById('video-ekyc-cam');
         if (!video || !video.videoWidth) { alert('Camera is not ready yet — please wait a moment and try again.'); return; }
@@ -12275,8 +12274,7 @@ ${specs}
         const statusEl = document.getElementById('video-ekyc-sig-status');
         if (statusEl) statusEl.classList.remove('found');
         switchVideoEkycToBackCamera(() => {
-            if (statusEl) statusEl.textContent = VEKYC_I18N[_vekycLang].sigLooking;
-            startVideoEkycSignatureDetection();
+            if (statusEl) statusEl.textContent = VEKYC_I18N[_vekycLang].sigLooking; // manual capture only — no auto-capture
         });
     }
 
@@ -12668,7 +12666,7 @@ ${specs}
             if (idRow) idRow.style.display = 'none';
             if (sigRow) sigRow.style.display = 'block';
             nextBtn.textContent = t.submit;
-            nextBtn.disabled = true; // enabled once the signature is auto-captured
+            nextBtn.disabled = true; // enabled once the signature is captured with Capture Now
             vekycSpeakOrQueue(sigStepText);
             startVideoEkycSignatureStep();
         }
