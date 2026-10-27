@@ -5673,6 +5673,8 @@
                 const now = new Date();
                 const finalizeAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
                 wallet.status = 'closing';
+                // Any renewal request still waiting for a decision can no longer be paid from this wallet.
+                (wallet.chargeRequests || []).forEach(r => { if (r.status === 'Pending' && r.type === 'renewal') { r.status = 'Rejected'; r.decidedAt = now.toISOString(); r.decisionReason = 'Permanent wallet closure was requested'; } });
                 wallet.closeRequestedAt = now.toISOString();
                 wallet.closeFinalizeAt = finalizeAt.toISOString();
                 wallet.lockHistory = wallet.lockHistory || [];
@@ -7309,7 +7311,7 @@
                     if (holidayNotice) {
                         attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title });
                     } else {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT' });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end) });
                     }
                 }
             }
@@ -7368,6 +7370,20 @@
     // Entry marked, Exit not    -> becomes ABSENT as soon as the shift ends.
     // Nothing marked            -> ABSENT (or HOLIDAY on a disabled/holiday day) as soon as the shift ends.
     // Days that passed while nobody had the app open are caught up automatically (up to 30 days back, never before the student's registration date).
+    // Was this student's fee overdue (=> attendance locked) on the given day? Uses only the fee payments made up to the end of that day.
+    function attFeeDueOnDay(st, ds, shiftEnd) {
+        try {
+            const dayEnd = new Date(ds + 'T' + (shiftEnd || '23:59') + ':00');
+            const hist = (st.feeHistory || []).filter(f => !f.entryDate || new Date(f.entryDate) <= dayEnd);
+            let due = new Date(st.date);
+            if (hist.length) {
+                const last = hist.slice().sort((a, b) => new Date(b.month) - new Date(a.month))[0];
+                due = new Date(last.month + '-01'); due.setMonth(due.getMonth() + 1); due.setDate(new Date(st.date).getDate());
+            } else due.setDate(due.getDate() + 30);
+            return dayEnd > due;
+        } catch (e) { return false; }
+    }
+    function absentLabelHtml(a) { return '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + (a.feeDue ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : ''); }
     function attRank(a) { return a.attStatus === 'completed' ? 4 : (a.attStatus === 'pending_exit' ? 3 : (a.status === 'PRESENT' ? 3 : (a.attStatus === 'invalid' ? 2 : 1))); }
     function reconcileAttendanceAll() {
         try {
@@ -7399,7 +7415,7 @@
                     if (pend) { pend.attStatus = 'invalid'; changed = true; continue; }
                     if (recs.length) continue;
                     const hol = getAttendanceBlockReasonFor(st, ds), when = new Date(ds + 'T' + sh.end + ':00').toISOString();
-                    attendances.push(hol ? { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'HOLIDAY', holidayTitle: hol.title } : { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'ABSENT' });
+                    attendances.push(hol ? { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'HOLIDAY', holidayTitle: hol.title } : { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(st, ds, sh.end) });
                     changed = true;
                 }
             });
@@ -8381,7 +8397,7 @@
             else if (a.attStatus === 'pending_exit') statusHtml = '<span class="att-status-pending">⏳ EXIT PENDING</span>';
             else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
-            else statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
+            else statusHtml = absentLabelHtml(a);
             tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + statusHtml + partialChipHtml(a) + '</td>';
             attBody.appendChild(tr);
         });
@@ -8904,7 +8920,7 @@
                     if (holidayNotice) {
                         attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title });
                     } else {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT' });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end) });
                     }
                     changed = true;
                 }
@@ -8936,7 +8952,7 @@
             else if (a.attStatus === 'pending_exit') statusHtml = '<span class="att-status-pending">⏳ EXIT PENDING</span>';
             else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
-            else statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
+            else statusHtml = absentLabelHtml(a);
 
             const entryPhotoHtml = (a.entry && a.entry.photo) ? `<img src="${a.entry.photo}" onclick="zoomPhoto('${a.entry.photo}')" style="width:36px;height:36px;border-radius:6px;object-fit:cover;cursor:zoom-in;">` : (a.photo ? `<img src="${a.photo}" onclick="zoomPhoto('${a.photo}')" style="width:36px;height:36px;border-radius:6px;object-fit:cover;cursor:zoom-in;">` : '—');
             const exitPhotoHtml = (a.exit && a.exit.photo) ? `<img src="${a.exit.photo}" onclick="zoomPhoto('${a.exit.photo}')" style="width:36px;height:36px;border-radius:6px;object-fit:cover;cursor:zoom-in;">` : '—';
@@ -13514,10 +13530,15 @@ function subAskAutoRenew(req, cb){
     o.querySelector('#sub-auto-no').onclick = function(){ o.remove(); };
     o.querySelector('#sub-auto-ok').onclick = function(){ o.remove(); cb(auto); };
 }
+    function walletBlockedRenewalAlert() {
+        const st = wallet.status;
+        alert('❌ This renewal request cannot be accepted from the wallet right now — the wallet is ' + (st === 'closing' ? 'under a Permanent Closure request' : st === 'deactivated' ? 'Deactivated' : st === 'frozen' ? 'Frozen' : st) + '. No amount was deducted. The Super Admin can record a Cash payment instead.');
+    }
     function acceptWalletChargeRequest(reqId, _fromModal) {
         if (!wallet) return;
         const req = (wallet.chargeRequests || []).find(r => r.id === reqId && r.status === 'Pending');
         if (!req) return;
+        if (wallet.status !== 'active') { walletBlockedRenewalAlert(); return; }
         if (req.plan && !_fromModal) { subAskAutoRenew(req, function(v){ _subAutoPick = v; acceptWalletChargeRequest(reqId, true); }); return; }
         if (!(req.plan && _fromModal) && !confirm('Accept this renewal charge? ₹' + req.amount + ' will be deducted from your wallet immediately (balance can go negative if insufficient).')) return;
         // The actual deduction only happens after the Admin verifies with their U-PIN (or
@@ -13532,6 +13553,7 @@ function subAskAutoRenew(req, cb){
         requireWalletUnlock({ title: '🔐 Confirm Payment', desc: 'Verify it\'s you to approve this ₹' + req.amount + ' subscription renewal charge from the Wallet.' }, () => {
             const liveReq = (wallet.chargeRequests || []).find(r => r.id === reqId && r.status === 'Pending');
             if (!liveReq) { refreshAllWalletDisplays(); return; }
+            if (wallet.status !== 'active') { walletBlockedRenewalAlert(); refreshAllWalletDisplays(); return; }
             const txnId = generateWalletTxnId(); liveReq.txnId = txnId;
             wallet.balance = (wallet.balance || 0) - liveReq.amount;
             wallet.transactions = wallet.transactions || [];
@@ -13675,6 +13697,7 @@ function subAskAutoRenew(req, cb){
                     <div style="font-size:0.72rem; font-weight:800; color:${isCredit ? '#16a34a' : '#dc2626'}; white-space:nowrap;">${isCredit ? '+' : '-'}₹${t.amount}</div>
                 </div>
                 <div style="font-size:0.8rem; color:var(--dark); font-weight:700; margin-top:4px; word-break:break-word;">${details}</div>
+                ${(t.refunds || []).map(r => `<div style="font-size:0.68rem; color:#0f766e; font-weight:700; margin-top:4px;">↩ Refunded ₹${r.amount} — Refund Txn: <span style="font-family:monospace;">${r.txnId}</span></div>`).join('')}
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding-top:6px; border-top:1px dashed var(--border);">
                     <div style="font-size:0.65rem; font-family:monospace; color:var(--grey); word-break:break-all;">Txn: ${t.id}</div>
                     <div style="font-size:0.65rem; color:var(--grey); white-space:nowrap;">Bal: ₹${t.balanceAfter}</div>
