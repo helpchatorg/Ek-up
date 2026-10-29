@@ -1666,7 +1666,13 @@
             background: #1e293b !important; margin: 8px auto 0 !important;
             border-radius: 20px !important; display: block !important;
         }
-        .sc-info-box {
+        .sc-code-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;}
+        .sc-code-row .sc-code-value{margin-bottom:0;}
+        .sc-refresh-btn{width:38px !important;height:38px !important;min-width:38px !important;padding:0 !important;margin:0 !important;border-radius:50% !important;background:#fff !important;border:1.5px solid #fca5a5 !important;color:#dc2626 !important;display:inline-flex !important;align-items:center;justify-content:center;cursor:pointer;box-shadow:none !important;flex:none;}
+        .sc-refresh-btn svg{width:18px;height:18px;display:block;}
+        .sc-refresh-btn.spin svg{animation:sc-spin .6s linear;}
+        @keyframes sc-spin{to{transform:rotate(360deg);}}
+                .sc-info-box {
             background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 14px;
             padding: 16px; margin-bottom: 4px;
         }
@@ -17635,6 +17641,16 @@ function subAskAutoRenew(req, cb){
         if (btnEl) btnEl.innerText = 'Show Code';
         document.getElementById('security-code-modal').classList.add('open');
     }
+    function refreshSecurityCode() {
+        if (!confirm('Generate a new Security Code?\n\nThe current code will stop working immediately. Note the new code somewhere safe.')) return;
+        let code, old = (JSON.parse(localStorage.getItem('Samarthak_SecurityCode') || 'null') || {}).code;
+        do { code = _generateSecCode(); } while (code === old);
+        localStorage.setItem('Samarthak_SecurityCode', JSON.stringify({ code: code, used: false }));
+        const valEl = document.getElementById('sc-code-val'); if (valEl) valEl.innerText = code;
+        const b = document.getElementById('sc-refresh-btn'); if (b) { b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin'); }
+        const lab = document.querySelector('#security-code-modal .sc-code-label');
+        if (lab) { lab.textContent = '✅ New code generated'; setTimeout(() => { lab.textContent = 'Your Security Code'; }, 2200); }
+    }
     function closeSecurityCodePage() {
         document.getElementById('security-code-modal').classList.remove('open');
         _scVisible = false;
@@ -19684,7 +19700,7 @@ The **Library Lost & Found service is provided free of charge**. The Library doe
         <div class="sc-modal-body">
             <div class="sc-code-display">
                 <div class="sc-code-label">Your Security Code</div>
-                <div class="sc-code-value sc-code-hidden" id="sc-code-val">------</div>
+                <div class="sc-code-row"><div class="sc-code-value sc-code-hidden" id="sc-code-val">------</div><button type="button" class="sc-refresh-btn" id="sc-refresh-btn" onclick="refreshSecurityCode()" title="Generate a new code" aria-label="Generate a new security code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button></div>
                 <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
                     <button class="sc-show-btn" id="sc-toggle-btn" onclick="toggleSecurityCodeVisibility()" style="margin:0 !important;">Show Code</button>
                     <button class="sc-show-btn" id="sc-copy-btn" onclick="copySecurityCode()" style="margin:0 !important; background:#16a34a !important;">Copy Code</button>
