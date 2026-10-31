@@ -3493,7 +3493,7 @@
                         </div>
                         <div class="admin-dropdown-divider"></div>
                         <div class="admin-dropdown-item" onclick="closeAdminMenu(); openAdminSubModal();">
-                            💳 Subscription <span class="admin-menu-notif-dot" id="admin-sub-notif-dot" style="display:none;"></span>
+                            💳 Manage Subscription <span class="admin-menu-notif-dot" id="admin-sub-notif-dot" style="display:none;"></span>
                         </div>
                         <div class="admin-dropdown-divider"></div>
                         <div class="admin-dropdown-item" onclick="closeAdminMenu(); openAppFeedbackModal();">
@@ -13353,7 +13353,7 @@ function subCancelDialog(by, onConfirm){
     o.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99996;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
     o.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:18px;box-sizing:border-box;text-align:left;max-height:92vh;overflow-y:auto;">' +
         '<h3 style="margin:0 0 8px;font-size:1rem;color:#991b1b;">🚫 Cancel Subscription</h3>' +
-        '<div style="font-size:0.74rem;color:#475569;line-height:1.6;margin-bottom:10px;">The subscription ends <b>today</b>, Auto-Renewal is switched OFF and pending renewal requests are rejected.<br>• <b>10-day grace period</b> — everything keeps working.<br>• <b>After day 10:</b> registrations, student work and fees are restricted.<br>• <b>Day 13:</b> system configuration is locked (view-only).<br>• <b>After day 15:</b> the dashboard is locked.<br>A new renewal restores everything at any time.</div>' +
+        '<div style="font-size:0.74rem;color:#475569;line-height:1.6;margin-bottom:10px;">If you Cancel, the subscription ends <b>today</b>.<br>• <b>10-day grace period</b> — everything keeps working.<br>• <b>After day 10:</b> registrations, student work and fees are restricted.<br>• <b>Day 13:</b> system configuration is locked (view-only).<br>• <b>After day 15:</b> the dashboard is locked.<br>A new renewal restores everything at any time.</div>' +
         '<textarea id="sub-cancel-reason" rows="2" placeholder="Reason for cancellation (required)" style="width:100%;box-sizing:border-box;margin:0 0 10px;"></textarea>' +
         '<div style="display:flex;gap:8px;"><button type="button" style="flex:1;background:#94a3b8;color:#fff;margin:0;" id="sub-cancel-no">Keep Subscription</button><button type="button" style="flex:1;background:#dc2626;color:#fff;margin:0;" id="sub-cancel-yes">Cancel Subscription</button></div></div>';
     document.body.appendChild(o);
@@ -13480,7 +13480,7 @@ function subCurLevel(){ return (_isImpersonationSession || !_loggedInAdminId) ? 
 function subBlocked(minLevel, what){
     if (subCurLevel() < minLevel) return false;
     const sub = subSubFor(_loggedInAdminId), over = sub ? -subDaysLeft(sub.expiresAt) : 0;
-    alert('🔒 Restricted — ' + what + '\n\nYour subscription ' + (sub && sub.cancelled ? 'was cancelled ' : 'expired ') + over + ' day(s) ago and has not been renewed. Open Wallet and accept the renewal request to restore access.');
+    alert('🔒 Restricted — ' + what + '\n\nYour subscription ' + (sub && sub.cancelled ? 'was cancelled ' : 'expired ') + over + ' day(s) ago and has not been renewed. Open Manage Subscription and accept the renewal request to restore access.');
     return true;
 }
 (function(){
@@ -13498,7 +13498,7 @@ function subRenderBanner(){
     const sub = subSubFor(_loggedInAdminId), over = -subDaysLeft(sub.expiresAt);
     if (!b) { b = document.createElement('div'); b.id = 'sub-restrict-banner'; b.style.cssText = 'position:sticky;top:0;z-index:900;background:#fef2f2;border-bottom:2px solid #dc2626;color:#991b1b;font-size:.74rem;font-weight:800;line-height:1.5;padding:9px 14px;text-align:center;'; const m = document.getElementById('main-app'); if (m) m.prepend(b); else document.body.prepend(b); }
     b.style.display = 'block';
-    b.innerHTML = '🔒 Subscription ' + (sub.cancelled ? 'cancelled ' : 'expired ') + over + ' day(s) ago — ' + (lv >= 2 ? 'registrations, student work, fees and system configuration are restricted.' : 'new registrations, student work and fees are restricted.') + ' Open Wallet and accept the renewal to restore access.';
+    b.innerHTML = '🔒 Subscription ' + (sub.cancelled ? 'cancelled ' : 'expired ') + over + ' day(s) ago — ' + (lv >= 2 ? 'registrations, student work, fees and system configuration are restricted.' : 'new registrations, student work and fees are restricted.') + ' Open Manage Subscription and accept the renewal to restore access.';
 }
 function subGrantAuthority(id){
     const iso = new Date().toISOString();
