@@ -14520,109 +14520,76 @@ function subAskAutoRenew(req, cb){
         const accentDark = isDemo ? [91, 33, 182] : [29, 78, 216];
         const accentLight = isDemo ? [237, 233, 254] : [219, 234, 254];
 
-        // ── BACKGROUND ──
-        doc.setFillColor(248, 250, 252);
-        doc.rect(0, 0, W, H, 'F');
-
-        // ── TOP HEADER BAND ──
-        doc.setFillColor(...accentMain);
-        doc.rect(0, 0, W, 16, 'F');
-
-        // Header accent strip
-        doc.setFillColor(...accentDark);
-        doc.rect(0, 14, W, 2, 'F');
-
-        // Left decorative bar
-        doc.setFillColor(...accentMain);
-        doc.rect(0, 16, 3, H - 16, 'F');
-
-        // Bottom footer band
-        doc.setFillColor(...accentDark);
-        doc.rect(0, H - 9, W, 9, 'F');
-        doc.setFillColor(...accentMain);
-        doc.rect(0, H - 11, W, 2, 'F');
-
-        // ── HEADER TEXT ──
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+        // ══ MODERN ID CARD — one layout, drawn twice (PDF + preview) so both look the same ══
+        const PANEL_W = 27, FOOT_H = 9;
+        const lc = [100, 116, 139], vc = [15, 23, 42], lineCol = [226, 232, 240];
+        const hex = a => '#' + a.map(v => v.toString(16).padStart(2, '0')).join('');
         const libName = (config.libName || 'Library').toUpperCase();
-        doc.text(libName, W / 2, 7, { align: "center" });
-        doc.setFontSize(5.5); doc.setFont("helvetica", "bolditalic"); doc.setTextColor(...accentLight);
-        doc.text("Managed by Samarthak Software", W / 2, 11.5, { align: "center" });
-
-        // DEMO badge in header
-        if (isDemo) {
-            doc.setFillColor(255, 200, 50);
-            doc.roundedRect(W - 22, 2, 19, 6, 1, 1, 'F');
-            doc.setFontSize(5); doc.setFont("helvetica", "bold"); doc.setTextColor(91, 33, 182);
-            doc.text("DEMO TRIAL", W - 12.5, 5.8, { align: "center" });
-        } else {
-            doc.setFillColor(16, 185, 129);
-            doc.roundedRect(W - 20, 2, 17, 6, 1, 1, 'F');
-            doc.setFontSize(5); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255);
-            doc.text("VERIFIED", W - 11.5, 5.8, { align: "center" });
-        }
-
-        // ── PHOTO ──
-        const photoX = 5; const photoY = 19; const photoSize = 22;
-        doc.setFillColor(...accentMain);
-        doc.roundedRect(photoX - 1, photoY - 1, photoSize + 2, photoSize + 2, 2, 2, 'F');
-        if (s.photo) {
-            try {
-                const fmt = s.photo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-                doc.addImage(s.photo, fmt, photoX, photoY, photoSize, photoSize);
-            } catch(e) {
-                doc.setFillColor(226, 232, 240); doc.rect(photoX, photoY, photoSize, photoSize, 'F');
-                doc.setFontSize(6); doc.setTextColor(148, 163, 184);
-                doc.text("NO\nPHOTO", photoX + photoSize/2, photoY + photoSize/2 - 2, { align: "center" });
-            }
-        } else {
-            doc.setFillColor(226, 232, 240); doc.rect(photoX, photoY, photoSize, photoSize, 'F');
-            doc.setFontSize(6); doc.setTextColor(148, 163, 184);
-            doc.text("NO\nPHOTO", photoX + photoSize/2, photoY + photoSize/2 - 2, { align: "center" });
-        }
-
-        // ── STUDENT INFO (right of photo) ──
-        const infoX = 30; let infoY = 21;
-
-        // Student name
-        doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...accentMain);
-        const nameText = s.name.length > 22 ? s.name.substring(0, 22) + '…' : s.name;
-        doc.text(nameText.toUpperCase(), infoX, infoY);
-        infoY += 1.5;
-
-        // Divider line under name
-        doc.setDrawColor(...accentMain); doc.setLineWidth(0.4);
-        doc.line(infoX, infoY + 1, W - 4, infoY + 1);
-        infoY += 4;
-
-        // Fields
-        const lc = [100, 116, 139]; const vc = [15, 23, 42];
-        const lineH = 4.8;
+        const nameText = (s.name.length > 24 ? s.name.substring(0, 24) + '…' : s.name).toUpperCase();
+        const infoX = 31, rightEnd = W - 4;
+        const photoSize = 22, photoX = 2.5, photoY = 13;
+        const lineH = 4.2, fieldY0 = 29.5;
+        const sideLines = isDemo ? ['DEMO', 'TRIAL'] : ['LIBRARY', 'MEMBER'];
+        const pillX = isDemo ? W - 22 : W - 20, pillW = isDemo ? 19 : 17, pillTxt = isDemo ? 'DEMO TRIAL' : 'VERIFIED';
         const fields = [
             { label: "Reg No.", value: isDemo ? "Pending (Demo)" : (s.regNo || "N/A") },
             { label: "Shift", value: (()=>{ const sh=config.shifts.find(x=>x.id===s.shift); return sh?(sh.name+(sh.start&&sh.end?` (${sh.start}-${sh.end})`:'')):s.shiftName||"N/A"; })().substring(0, 28) },
             { label: "Seat No.", value: String(s.seat ? seatLabel(s.seat) : "N/A") },
             { label: isDemo ? "Demo Start" : "Reg. Date", value: formatAppDate(isDemo ? s.demoDate : s.date) },
         ];
-
-        fields.forEach(f => {
-            doc.setFontSize(5); doc.setFont("helvetica", "normal"); doc.setTextColor(...lc);
-            doc.text(f.label, infoX, infoY);
-            doc.setFontSize(6); doc.setFont("helvetica", "bold"); doc.setTextColor(...vc);
-            doc.text(String(f.value), infoX + 14, infoY);
-            infoY += lineH;
-        });
-
-        // ── FOOTER ──
-        // Line 1: lib name + address (full, wrapped if needed)
-        // Line 2: PIN + Mobile
         const footerLine1 = (config.libName || '') + (config.address ? ' | ' + config.address : '');
         const footerLine2 = (config.pin ? 'PIN Code: ' + config.pin : '') + (config.mobile ? '  |  Mob: ' + config.mobile : '');
+        const fitSize = (text, start, min, maxW, measure) => { let z = start; while (z > min && measure(text, z) > maxW) z -= 0.5; return z; };
+
+        // ───────── PDF ─────────
+        doc.setFillColor(255, 255, 255); doc.rect(0, 0, W, H, 'F');
+        doc.setFillColor(...accentMain); doc.rect(0, 0, PANEL_W, H - FOOT_H, 'F');          // left panel
+        doc.setFillColor(...accentDark); doc.rect(0, 0, PANEL_W, 8, 'F');                    // panel top strip
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(255, 255, 255);
+        doc.text("STUDENT ID", PANEL_W / 2, 5, { align: "center" });
+        doc.setFillColor(...accentDark); doc.rect(0, H - FOOT_H, W, FOOT_H, 'F');            // footer band
+        // photo with white frame
+        doc.setFillColor(255, 255, 255); doc.roundedRect(photoX - 1.2, photoY - 1.2, photoSize + 2.4, photoSize + 2.4, 1.5, 1.5, 'F');
+        let pdfPhotoOk = false;
+        if (s.photo) {
+            try { doc.addImage(s.photo, s.photo.startsWith('data:image/png') ? 'PNG' : 'JPEG', photoX, photoY, photoSize, photoSize); pdfPhotoOk = true; } catch (e) {}
+        }
+        if (!pdfPhotoOk) {
+            doc.setFillColor(226, 232, 240); doc.rect(photoX, photoY, photoSize, photoSize, 'F');
+            doc.setFontSize(6); doc.setTextColor(148, 163, 184);
+            doc.text("NO\nPHOTO", photoX + photoSize / 2, photoY + photoSize / 2 - 2, { align: "center" });
+        }
+        doc.setFont("helvetica", "bold"); doc.setFontSize(4.8); doc.setTextColor(255, 255, 255);
+        doc.text(sideLines[0], PANEL_W / 2, 39.5, { align: "center" });
+        doc.text(sideLines[1], PANEL_W / 2, 42.3, { align: "center" });
+        // header (right)
+        doc.setFont("helvetica", "bold");
+        const libSizePdf = fitSize(libName, 9, 6, pillX - infoX - 1, (t, z) => { doc.setFontSize(z); return doc.getTextWidth(t); });
+        doc.setFontSize(libSizePdf); doc.setTextColor(...accentDark);
+        doc.text(libName, infoX, 8.5);
+        doc.setFont("helvetica", "italic"); doc.setFontSize(4.8); doc.setTextColor(...lc);
+        doc.text("Managed by Samarthak Software", infoX, 12);
+        doc.setFillColor(...(isDemo ? [255, 200, 50] : [16, 185, 129])); doc.roundedRect(pillX, 3, pillW, 5.5, 1, 1, 'F');
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...(isDemo ? [91, 33, 182] : [255, 255, 255]));
+        doc.text(pillTxt, pillX + pillW / 2, 6.7, { align: "center" });
+        doc.setDrawColor(...lineCol); doc.setLineWidth(0.3); doc.line(infoX, 14.5, rightEnd, 14.5);
+        // name
+        doc.setFont("helvetica", "bold");
+        const nameSizePdf = fitSize(nameText, 10, 6.5, rightEnd - infoX, (t, z) => { doc.setFontSize(z); return doc.getTextWidth(t); });
+        doc.setFontSize(nameSizePdf); doc.setTextColor(...accentMain);
+        doc.text(nameText, infoX, 21);
+        // fields
+        fields.forEach((f, i) => {
+            const y = fieldY0 + i * lineH;
+            doc.setFontSize(4.8); doc.setFont("helvetica", "normal"); doc.setTextColor(...lc);
+            doc.text(f.label, infoX, y);
+            doc.setFontSize(6); doc.setFont("helvetica", "bold"); doc.setTextColor(...vc);
+            doc.text(String(f.value), infoX + 13, y);
+            doc.setDrawColor(...lineCol); doc.setLineWidth(0.2); doc.line(infoX, y + 1.4, rightEnd, y + 1.4);
+        });
+        // footer text
         doc.setFontSize(4.8); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255);
-        // Split long footer line 1 across 2 sub-lines inside footer band
-        const maxFooterWidth = W - 4;
-        const splitLines = doc.splitTextToSize(footerLine1, maxFooterWidth);
+        const splitLines = doc.splitTextToSize(footerLine1, W - 4);
         if (splitLines.length >= 2) {
             doc.setFontSize(4.2);
             doc.text(splitLines[0], W / 2, H - 7.5, { align: "center" });
@@ -14635,147 +14602,82 @@ function subAskAutoRenew(req, cb){
 
         _idCardDocRef = doc;
 
-        // ── CANVAS PREVIEW — mirrors PDF exactly ──
+        // ───────── PREVIEW (canvas) — same coordinates as the PDF ─────────
         const canvas = document.getElementById('idcard-canvas-preview');
-        const sc = 5; // px per mm  (85.6*5=428px wide, 54*5=270px tall)
+        const sc = 6; // px per mm
         canvas.width = Math.round(W * sc);
         canvas.height = Math.round(H * sc);
         canvas.style.width = '100%';
         canvas.style.maxWidth = '428px';
         canvas.style.height = 'auto';
-
         const ctx = canvas.getContext('2d');
-        const cW = canvas.width; const cH = canvas.height;
+        const cW = canvas.width;
+        const FF = 'Helvetica, Arial, sans-serif';
+        const px = pt => Math.round(pt * 0.3528 * sc * 100) / 100;   // PDF points -> canvas pixels
+        const fnt = (style, pt) => `${style} ${px(pt)}px ${FF}`;
 
-        // Background
-        ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, cW, cH);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cW, H * sc);
+        ctx.fillStyle = hex(accentMain); ctx.fillRect(0, 0, PANEL_W * sc, (H - FOOT_H) * sc);
+        ctx.fillStyle = hex(accentDark); ctx.fillRect(0, 0, PANEL_W * sc, 8 * sc);
+        ctx.fillStyle = '#fff'; ctx.font = fnt('bold', 5); ctx.textAlign = 'center';
+        ctx.fillText('STUDENT ID', PANEL_W / 2 * sc, 5 * sc);
+        ctx.fillStyle = hex(accentDark); ctx.fillRect(0, (H - FOOT_H) * sc, cW, FOOT_H * sc);
+        ctx.fillStyle = '#fff'; ctxRoundRect(ctx, (photoX - 1.2) * sc, (photoY - 1.2) * sc, (photoSize + 2.4) * sc, (photoSize + 2.4) * sc, 1.5 * sc); ctx.fill();
 
-        // Header band
-        ctx.fillStyle = isDemo ? '#7c3aed' : '#2563eb';
-        ctx.fillRect(0, 0, cW, 16 * sc);
-        ctx.fillStyle = isDemo ? '#5b21b6' : '#1d4ed8';
-        ctx.fillRect(0, 14 * sc, cW, 2 * sc);
-
-        // Left decorative bar
-        ctx.fillStyle = isDemo ? '#7c3aed' : '#2563eb';
-        ctx.fillRect(0, 16 * sc, 3 * sc, cH - 16 * sc);
-
-        // Footer band
-        ctx.fillStyle = isDemo ? '#5b21b6' : '#1d4ed8';
-        ctx.fillRect(0, (H - 9) * sc, cW, 9 * sc);
-        ctx.fillStyle = isDemo ? '#7c3aed' : '#2563eb';
-        ctx.fillRect(0, (H - 11) * sc, cW, 2 * sc);
-
-        // Lib name in header
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${Math.round(9 * sc * 0.72)}px Nunito, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(libName, cW / 2, Math.round(7.5 * sc));
-
-        // "Managed by" line removed from PDF too — but keep header subline in canvas
-        ctx.font = `italic ${Math.round(5.5 * sc * 0.72)}px Nunito, sans-serif`;
-        ctx.fillStyle = isDemo ? '#ede9fe' : '#dbeafe';
-        ctx.fillText('Managed by Samarthak Software', cW / 2, Math.round(12.5 * sc));
-
-        // Badge
-        if (isDemo) {
-            ctx.fillStyle = '#ffc832';
-            ctxRoundRect(ctx, (W - 22) * sc, 2 * sc, 19 * sc, 6 * sc, 4); ctx.fill();
-            ctx.fillStyle = '#5b21b6';
-            ctx.font = `bold ${Math.round(5 * sc * 0.72)}px Nunito, sans-serif`;
-            ctx.fillText('DEMO TRIAL', (W - 12.5) * sc, Math.round(6.3 * sc));
-        } else {
-            ctx.fillStyle = '#10b981';
-            ctxRoundRect(ctx, (W - 20) * sc, 2 * sc, 17 * sc, 6 * sc, 4); ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = `bold ${Math.round(5 * sc * 0.72)}px Nunito, sans-serif`;
-            ctx.fillText('VERIFIED', (W - 11.5) * sc, Math.round(6.3 * sc));
-        }
-
-        // Photo border
-        ctx.fillStyle = isDemo ? '#7c3aed' : '#2563eb';
-        ctxRoundRect(ctx, (photoX - 1) * sc, (photoY - 1) * sc, (photoSize + 2) * sc, (photoSize + 2) * sc, 4); ctx.fill();
-
-        const drawPhotoAndText = () => {
-            // Name
-            ctx.fillStyle = isDemo ? '#7c3aed' : '#2563eb';
-            ctx.font = `bold ${Math.round(8.5 * sc * 0.72)}px Nunito, sans-serif`;
-            ctx.textAlign = 'left';
-            ctx.fillText(nameText.toUpperCase(), infoX * sc, Math.round(21.5 * sc));
-
-            // Divider under name
-            ctx.strokeStyle = isDemo ? '#7c3aed' : '#2563eb';
-            ctx.lineWidth = Math.round(0.4 * sc);
-            ctx.beginPath();
-            ctx.moveTo(infoX * sc, Math.round(23.8 * sc));
-            ctx.lineTo((W - 4) * sc, Math.round(23.8 * sc));
-            ctx.stroke();
-
-            // Fields
-            let fY2 = 28;
-            const maxValWidth = (W - infoX - 14 - 5) * sc; // max width for value text
-            fields.forEach(f => {
-                ctx.fillStyle = '#64748b';
-                ctx.font = `${Math.round(5 * sc * 0.72)}px Nunito, sans-serif`;
-                ctx.textAlign = 'left';
-                ctx.fillText(f.label, infoX * sc, Math.round(fY2 * sc));
-                ctx.fillStyle = '#0f172a';
-                ctx.font = `bold ${Math.round(6 * sc * 0.72)}px Nunito, sans-serif`;
-                // Truncate value if too wide
-                let valText = String(f.value);
-                while (ctx.measureText(valText).width > maxValWidth && valText.length > 3) {
-                    valText = valText.slice(0, -1);
-                }
-                if (valText !== String(f.value)) valText += '…';
-                ctx.fillText(valText, (infoX + 14) * sc, Math.round(fY2 * sc));
-                fY2 += lineH;
+        const drawRest = () => {
+            ctx.fillStyle = '#fff'; ctx.font = fnt('bold', 4.8); ctx.textAlign = 'center';
+            ctx.fillText(sideLines[0], PANEL_W / 2 * sc, 39.5 * sc);
+            ctx.fillText(sideLines[1], PANEL_W / 2 * sc, 42.3 * sc);
+            // header
+            const mCan = (t, z) => { ctx.font = fnt('bold', z); return ctx.measureText(t).width / sc; };
+            const libSizeCan = fitSize(libName, 9, 6, pillX - infoX - 1, mCan);
+            ctx.textAlign = 'left'; ctx.fillStyle = hex(accentDark); ctx.font = fnt('bold', libSizeCan);
+            ctx.fillText(libName, infoX * sc, 8.5 * sc);
+            ctx.fillStyle = hex(lc); ctx.font = fnt('italic', 4.8);
+            ctx.fillText('Managed by Samarthak Software', infoX * sc, 12 * sc);
+            ctx.fillStyle = isDemo ? '#ffc832' : '#10b981'; ctxRoundRect(ctx, pillX * sc, 3 * sc, pillW * sc, 5.5 * sc, 1 * sc); ctx.fill();
+            ctx.fillStyle = isDemo ? '#5b21b6' : '#ffffff'; ctx.font = fnt('bold', 5); ctx.textAlign = 'center';
+            ctx.fillText(pillTxt, (pillX + pillW / 2) * sc, 6.7 * sc);
+            ctx.strokeStyle = hex(lineCol); ctx.lineWidth = 0.3 * sc;
+            ctx.beginPath(); ctx.moveTo(infoX * sc, 14.5 * sc); ctx.lineTo(rightEnd * sc, 14.5 * sc); ctx.stroke();
+            // name
+            const nameSizeCan = fitSize(nameText, 10, 6.5, rightEnd - infoX, mCan);
+            ctx.textAlign = 'left'; ctx.fillStyle = hex(accentMain); ctx.font = fnt('bold', nameSizeCan);
+            ctx.fillText(nameText, infoX * sc, 21 * sc);
+            // fields
+            fields.forEach((f, i) => {
+                const y = fieldY0 + i * lineH;
+                ctx.fillStyle = hex(lc); ctx.font = fnt('normal', 4.8); ctx.fillText(f.label, infoX * sc, y * sc);
+                ctx.fillStyle = hex(vc); ctx.font = fnt('bold', 6); ctx.fillText(String(f.value), (infoX + 13) * sc, y * sc);
+                ctx.strokeStyle = hex(lineCol); ctx.lineWidth = 0.2 * sc;
+                ctx.beginPath(); ctx.moveTo(infoX * sc, (y + 1.4) * sc); ctx.lineTo(rightEnd * sc, (y + 1.4) * sc); ctx.stroke();
             });
-
-            // Footer line 1 - full address, wrap to 2 lines if needed
-            ctx.fillStyle = '#fff';
-            ctx.font = `bold ${Math.round(4.8 * sc * 0.72)}px Nunito, sans-serif`;
-            ctx.textAlign = 'center';
-            // Simple word-wrap for canvas footer
-            const footerMaxWidth = cW - 10;
-            const measuredWidth = ctx.measureText(footerLine1).width;
-            if (measuredWidth > footerMaxWidth) {
-                // Try smaller font and wrap to 2 lines
-                ctx.font = `bold ${Math.round(4.2 * sc * 0.72)}px Nunito, sans-serif`;
-                const midPoint = Math.floor(footerLine1.length / 2);
-                let breakAt = footerLine1.lastIndexOf(' ', midPoint);
-                if (breakAt < 0) breakAt = midPoint;
-                const part1 = footerLine1.substring(0, breakAt).trim();
-                const part2 = footerLine1.substring(breakAt).trim();
-                ctx.fillText(part1, cW / 2, Math.round((H - 7.5) * sc));
-                ctx.fillText(part2, cW / 2, Math.round((H - 5.2) * sc));
-            } else {
-                ctx.fillText(footerLine1, cW / 2, Math.round((H - 6) * sc));
-            }
-            // Footer line 2
-            ctx.fillStyle = isDemo ? '#ede9fe' : '#dbeafe';
-            ctx.font = `${Math.round(4.5 * sc * 0.72)}px Nunito, sans-serif`;
-            ctx.fillText(footerLine2, cW / 2, Math.round((H - 2) * sc));
+            // footer (same wrapping as the PDF)
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = fnt('bold', 4.8);
+            const maxW = (W - 4) * sc, words = footerLine1.split(' '), fl = []; let cur = '';
+            words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { fl.push(cur); cur = w; } else cur = t; });
+            if (cur) fl.push(cur);
+            if (fl.length >= 2) {
+                ctx.font = fnt('bold', 4.2);
+                ctx.fillText(fl[0], cW / 2, (H - 7.5) * sc);
+                ctx.fillText(fl[1], cW / 2, (H - 5.2) * sc);
+            } else ctx.fillText(footerLine1, cW / 2, (H - 6.5) * sc);
+            ctx.fillStyle = hex(accentLight); ctx.font = fnt('normal', 4.5);
+            ctx.fillText(footerLine2, cW / 2, (H - 2.5) * sc);
         };
-
+        const noPhoto = () => {
+            ctx.fillStyle = '#e2e8f0'; ctx.fillRect(photoX * sc, photoY * sc, photoSize * sc, photoSize * sc);
+            ctx.fillStyle = '#94a3b8'; ctx.font = fnt('normal', 6); ctx.textAlign = 'center';
+            ctx.fillText('NO', (photoX + photoSize / 2) * sc, (photoY + photoSize / 2 - 2) * sc);
+            ctx.fillText('PHOTO', (photoX + photoSize / 2) * sc, (photoY + photoSize / 2 - 2 + 2.45) * sc);
+            drawRest();
+        };
         if (s.photo) {
             const img = new Image();
-            img.onload = () => {
-                ctx.drawImage(img, photoX * sc, photoY * sc, photoSize * sc, photoSize * sc);
-                drawPhotoAndText();
-            };
-            img.onerror = () => {
-                ctx.fillStyle = '#e2e8f0'; ctx.fillRect(photoX * sc, photoY * sc, photoSize * sc, photoSize * sc);
-                ctx.fillStyle = '#94a3b8'; ctx.font = `${Math.round(5 * sc * 0.7)}px Nunito, sans-serif`; ctx.textAlign = 'center';
-                ctx.fillText('NO PHOTO', (photoX + photoSize / 2) * sc, (photoY + photoSize / 2) * sc);
-                drawPhotoAndText();
-            };
+            img.onload = () => { ctx.drawImage(img, photoX * sc, photoY * sc, photoSize * sc, photoSize * sc); drawRest(); };
+            img.onerror = noPhoto;
             img.src = s.photo;
-        } else {
-            ctx.fillStyle = '#e2e8f0'; ctx.fillRect(photoX * sc, photoY * sc, photoSize * sc, photoSize * sc);
-            ctx.fillStyle = '#94a3b8'; ctx.font = `${Math.round(5 * sc * 0.7)}px Nunito, sans-serif`; ctx.textAlign = 'center';
-            ctx.fillText('NO PHOTO', (photoX + photoSize / 2) * sc, (photoY + photoSize / 2) * sc);
-            drawPhotoAndText();
-        }
+        } else noPhoto();
 
         document.getElementById('idcard-preview-modal').classList.add('open');
     }
