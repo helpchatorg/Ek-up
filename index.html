@@ -10253,7 +10253,7 @@
     function cancelWaitingListEntry(id) {
         if (!confirm("Remove this entry from the Waiting List?")) return;
         const entry = waitingList.find(w => w.id === id);
-        if (entry) { entry.status = 'cancelled'; logAllocation('CANCELLED', entry, null, entry.shiftName, 'Removed by Admin', 'Removed from Waiting List'); }
+        if (entry) { entry.status = 'cancelled'; entry.removedBy = 'Admin'; logAllocation('CANCELLED', entry, null, entry.shiftName, 'Removed by Admin', 'Removed from Waiting List'); }
         saveToLocal();
         renderWaitingListAdmin();
     }
@@ -14836,7 +14836,7 @@ function subAskAutoRenew(req, cb){
             let statusBadge, statusNote;
             if (w.status === 'waiting') { statusBadge = `<span style="background:#fef3c7; color:#92400e; padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:800;">Position #${r.position} · Waiting</span>`; statusNote = `You'll be automatically allocated the next available seat in this shift.`; }
             else if (w.status === 'allocated') { statusBadge = `<span style="background:#dcfce7; color:#166534; padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:800;">🎉 Seat Allocated — ${(r.seatLabels && r.seatLabels[w.allocatedSeat - 1]) || w.allocatedSeat}</span>`; statusNote = `A seat has been allocated to you!<br><b style="color:#166534;">Registration No: ${w.regNo || ('REG' + String(w.id).replace(/^WL/, ''))}</b><br>Log in with this Registration Number and your mobile number to view full details.`; }
-            else { statusBadge = `<span style="background:#fee2e2; color:#991b1b; padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:800;">Cancelled</span>`; statusNote = `This Waiting List entry was removed.`; }
+            else { statusBadge = `<span style="background:#fee2e2; color:#991b1b; padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:800;">${w.removedBy ? 'Removed by ' + w.removedBy : 'Cancelled'}</span>`; statusNote = `This Waiting List entry was removed${w.removedBy ? ' by ' + w.removedBy : ''}.`; }
             return `<div style="background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:10px;">
                 <div style="font-weight:800; font-size:0.85rem;">${r.libName}</div>
                 <div style="font-size:0.75rem; color:var(--grey); margin:4px 0;">🎫 ${w.id} &nbsp;|&nbsp; Shift: ${w.shiftName} &nbsp;|&nbsp; Requested: ${new Date(w.requestedAt).toLocaleDateString()}</div>
@@ -14856,8 +14856,9 @@ function subAskAutoRenew(req, cb){
             const entry = data.waitingList.find(w => w.id === waitId);
             if (entry) {
                 entry.status = 'cancelled';
+                entry.removedBy = 'Student';
                 if (!Array.isArray(data.allocationLog)) data.allocationLog = [];
-                data.allocationLog.unshift({ id:'LOG'+Date.now(), timestamp:new Date().toISOString(), action:'CANCELLED', waitId:entry.id, studentName:entry.name, mobile:entry.mobile, seat:'-', shiftName:entry.shiftName, trigger:'Left Waiting List (Student)', result:'Removed from Waiting List' });
+                data.allocationLog.unshift({ id:'LOG'+Date.now(), timestamp:new Date().toISOString(), action:'CANCELLED', waitId:entry.id, studentName:entry.name, mobile:entry.mobile, seat:'-', shiftName:entry.shiftName, trigger:'Removed by Student', result:'Removed from Waiting List' });
                 // IMPORTANT: write the update straight to localStorage so it's durable even if
                 // this browser tab never has the admin's library loaded into memory. If this
                 // *is* the admin's active tab, also refresh in-memory state + the visible screen
