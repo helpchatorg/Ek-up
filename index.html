@@ -11028,6 +11028,20 @@
                 const statusColor = isPaid ? "#16a34a" : "#dc2626";
                 const statusText = isPaid ? "● FEE STATUS: PAID" : "● FEE STATUS: PENDING";
                 card.style.borderLeftColor = s.isBlocked ? "#dc2626" : statusColor;
+                const infoShiftObj = config.shifts.find(x => x.id === s.shift);
+                const infoShiftTxt = infoShiftObj ? (infoShiftObj.name + (infoShiftObj.start && infoShiftObj.end ? ` (${infoShiftObj.start}-${infoShiftObj.end})` : '')) : (s.shiftName || '—');
+                const infoRow = (l, v) => `<div style="display:flex; gap:10px; padding:5px 0; border-bottom:1px solid #e2e8f0; font-size:0.74rem;"><span style="flex:0 0 38%; color:#64748b; font-weight:700;">${l}</span><span style="flex:1; min-width:0; font-weight:800; color:#0f172a; word-break:break-word;">${v}</span></div>`;
+                const studentInfoHtml = `<div id="sinfo-${s.id}" style="display:none; background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:12px; margin:10px 0 4px 0;">
+                    <div style="text-align:center; margin-bottom:10px;">
+                        ${s.photo ? `<img src="${s.photo}" style="width:84px; height:84px; border-radius:50%; object-fit:cover; border:3px solid #2563eb; cursor:zoom-in;" onclick="zoomPhoto('${s.photo}')">` : '<div style="width:84px; height:84px; border-radius:50%; background:#e2e8f0; color:#94a3b8; display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:800;">NO PHOTO</div>'}
+                        <div style="margin-top:6px; font-size:0.72rem; font-weight:800; color:#2563eb;">Seat ${s.seat ? prEsc(seatLabel(s.seat)) : '— (freed)'} &nbsp;|&nbsp; ${prEsc(infoShiftTxt)}</div>
+                    </div>
+                    ${infoRow('Applicant Name', prEsc(s.name))}
+                    ${infoRow("Father's Name", prEsc(s.fname || '—'))}
+                    ${infoRow('Mobile Number', prEsc(s.mobile || '—'))}
+                    ${infoRow('Email', prEsc(s.email || '—'))}
+                    ${infoRow('Date of Birth', s.dob ? formatAppDate(s.dob) : '—')}
+                </div>`;
                 card.innerHTML = `<div class="card-top-row" style="gap:12px;">
                     <div style="display:flex; gap:12px; align-items:center; flex:1; min-width:0;">
                         ${s.photo ? `<img src="${s.photo}" style="width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; cursor:zoom-in;" onclick="zoomPhoto('${s.photo}')">` : '<div style="width:44px;height:44px;border-radius:50%;background:#f1f5f9;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>'}
@@ -11040,6 +11054,7 @@
                             ${(!s.seat && s.seatFreedInfo) ? `<div class="blocked-badge" style="background:#ccfbf1;color:#0f766e;border-color:#5eead4;">🔓 SEAT FREED (was ${prEsc(s.seatFreedInfo.seatLabel)}) — ${prEsc(s.seatFreedInfo.reason)}</div>` : ''}
                             <p style="font-size:0.72rem; font-weight:800; color:${statusColor}; margin:3px 0;">${statusText}</p>
                             <p style="font-size:0.68rem; color:#475569; margin:2px 0;">Reg: ${formatAppDate(s.date)} &nbsp;|&nbsp; Next Due: <strong>${dueDateStr}</strong></p>
+                            <a href="javascript:void(0)" id="sinfo-link-${s.id}" onclick="toggleStudentInfo('${s.id}')" style="display:inline-block; margin:3px 0; font-size:0.72rem; font-weight:800; color:#2563eb; text-decoration:none;">ℹ️ Student Information ▾</a>
                             ${s.isBlocked ? `<div class="blocked-badge">🔒 DASHBOARD BLOCKED</div>` : ''}
                             ${s.isTicketBlocked ? `<div class="blocked-badge">🎫 NEW TICKET CREATION BLOCKED</div>` : ''}
                             ${(s.ticketRestriction && tmIsBlocked(s.ticketRestriction)) ? `<div class="blocked-badge">${tmStatusLabel(s.ticketRestriction).text}</div>` : ''}
@@ -11054,6 +11069,7 @@
                         </div>
                     </div>
                 </div>
+                ${studentInfoHtml}
                 <div class="card-actions">
                     <button class="btn-fee-h" onclick="openFeePanel('${s.id}')">Manage Fees</button>
                     <button class="btn-edit-h" onclick="editRecord('${s.id}')">Edit</button>
@@ -11070,6 +11086,14 @@
             }
             body.appendChild(card);
         });
+    }
+
+    function toggleStudentInfo(id) {
+        const box = document.getElementById('sinfo-' + id), link = document.getElementById('sinfo-link-' + id);
+        if (!box) return;
+        const open = box.style.display === 'none';
+        box.style.display = open ? 'block' : 'none';
+        if (link) link.innerHTML = open ? 'ℹ️ Student Information ▴' : 'ℹ️ Student Information ▾';
     }
 
     let blockModalStudentId = null;
