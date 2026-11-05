@@ -7206,7 +7206,8 @@
     function withPartialChip(statusHtml, a, inline) {
         const chip = partialChipHtml(a, inline); if (!chip) return statusHtml;
         const i = statusHtml.indexOf('<br>');
-        return i < 0 ? statusHtml + chip : statusHtml.slice(0, i) + chip + statusHtml.slice(i);
+        const head = i < 0 ? statusHtml : statusHtml.slice(0, i), tail = i < 0 ? '' : statusHtml.slice(i);
+        return '<span style="white-space:nowrap;">' + head + chip + '</span>' + tail;   // status + chip always stay side by side
     }
     // PDF: only a count label, no details
     function pdfPartialText(a) {
