@@ -14553,10 +14553,9 @@ function subAskAutoRenew(req, cb){
         const libName = (config.libName || 'Library').toUpperCase();
         const nameText = (s.name.length > 24 ? s.name.substring(0, 24) + '…' : s.name).toUpperCase();
         const infoX = 31, rightEnd = W - 4;
-        const photoSize = 22, photoX = 2.5, photoY = 13;
+        const photoSize = 22, photoX = 2.5, photoY = 7.5;
         const lineH = 4.2, fieldY0 = 29.5;
-        const sideLines = isDemo ? ['DEMO', 'TRIAL'] : ['LIBRARY', 'MEMBER'];
-        const pillX = isDemo ? W - 22 : W - 20, pillW = isDemo ? 19 : 17, pillTxt = isDemo ? 'DEMO TRIAL' : 'VERIFIED';
+                const pillW = isDemo ? 19 : 17, pillX = (PANEL_W - pillW) / 2, pillY = 34, pillTxt = isDemo ? 'DEMO TRIAL' : 'VERIFIED';   // badge sits under the photo
         const fields = [
             { label: "Reg No.", value: isDemo ? "Pending (Demo)" : (s.regNo || "N/A") },
             { label: "Shift", value: (()=>{ const sh=config.shifts.find(x=>x.id===s.shift); return sh?(sh.name+(sh.start&&sh.end?` (${sh.start}-${sh.end})`:'')):s.shiftName||"N/A"; })().substring(0, 28) },
@@ -14570,9 +14569,6 @@ function subAskAutoRenew(req, cb){
         // ───────── PDF ─────────
         doc.setFillColor(255, 255, 255); doc.rect(0, 0, W, H, 'F');
         doc.setFillColor(...accentMain); doc.rect(0, 0, PANEL_W, H - FOOT_H, 'F');          // left panel
-        doc.setFillColor(...accentDark); doc.rect(0, 0, PANEL_W, 8, 'F');                    // panel top strip
-        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(255, 255, 255);
-        doc.text("STUDENT ID", PANEL_W / 2, 5, { align: "center" });
         doc.setFillColor(...accentDark); doc.rect(0, H - FOOT_H, W, FOOT_H, 'F');            // footer band
         // photo with white frame
         doc.setFillColor(255, 255, 255); doc.roundedRect(photoX - 1.2, photoY - 1.2, photoSize + 2.4, photoSize + 2.4, 1.5, 1.5, 'F');
@@ -14585,19 +14581,16 @@ function subAskAutoRenew(req, cb){
             doc.setFontSize(6); doc.setTextColor(148, 163, 184);
             doc.text("NO\nPHOTO", photoX + photoSize / 2, photoY + photoSize / 2 - 2, { align: "center" });
         }
-        doc.setFont("helvetica", "bold"); doc.setFontSize(4.8); doc.setTextColor(255, 255, 255);
-        doc.text(sideLines[0], PANEL_W / 2, 39.5, { align: "center" });
-        doc.text(sideLines[1], PANEL_W / 2, 42.3, { align: "center" });
+        doc.setFillColor(...(isDemo ? [255, 200, 50] : [16, 185, 129])); doc.roundedRect(pillX, pillY, pillW, 5.5, 1, 1, 'F');
+        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...(isDemo ? [91, 33, 182] : [255, 255, 255]));
+        doc.text(pillTxt, pillX + pillW / 2, pillY + 3.7, { align: "center" });
         // header (right)
         doc.setFont("helvetica", "bold");
-        const libSizePdf = fitSize(libName, 9, 6, pillX - infoX - 1, (t, z) => { doc.setFontSize(z); return doc.getTextWidth(t); });
+        const libSizePdf = fitSize(libName, 9, 6, rightEnd - infoX, (t, z) => { doc.setFontSize(z); return doc.getTextWidth(t); });
         doc.setFontSize(libSizePdf); doc.setTextColor(...accentDark);
         doc.text(libName, infoX, 8.5);
         doc.setFont("helvetica", "italic"); doc.setFontSize(4.8); doc.setTextColor(...lc);
         doc.text("Managed by Samarthak Software", infoX, 12);
-        doc.setFillColor(...(isDemo ? [255, 200, 50] : [16, 185, 129])); doc.roundedRect(pillX, 3, pillW, 5.5, 1, 1, 'F');
-        doc.setFont("helvetica", "bold"); doc.setFontSize(5); doc.setTextColor(...(isDemo ? [91, 33, 182] : [255, 255, 255]));
-        doc.text(pillTxt, pillX + pillW / 2, 6.7, { align: "center" });
         doc.setDrawColor(...lineCol); doc.setLineWidth(0.3); doc.line(infoX, 14.5, rightEnd, 14.5);
         // name
         doc.setFont("helvetica", "bold");
@@ -14644,26 +14637,20 @@ function subAskAutoRenew(req, cb){
 
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cW, H * sc);
         ctx.fillStyle = hex(accentMain); ctx.fillRect(0, 0, PANEL_W * sc, (H - FOOT_H) * sc);
-        ctx.fillStyle = hex(accentDark); ctx.fillRect(0, 0, PANEL_W * sc, 8 * sc);
-        ctx.fillStyle = '#fff'; ctx.font = fnt('bold', 5); ctx.textAlign = 'center';
-        ctx.fillText('STUDENT ID', PANEL_W / 2 * sc, 5 * sc);
         ctx.fillStyle = hex(accentDark); ctx.fillRect(0, (H - FOOT_H) * sc, cW, FOOT_H * sc);
         ctx.fillStyle = '#fff'; ctxRoundRect(ctx, (photoX - 1.2) * sc, (photoY - 1.2) * sc, (photoSize + 2.4) * sc, (photoSize + 2.4) * sc, 1.5 * sc); ctx.fill();
 
         const drawRest = () => {
-            ctx.fillStyle = '#fff'; ctx.font = fnt('bold', 4.8); ctx.textAlign = 'center';
-            ctx.fillText(sideLines[0], PANEL_W / 2 * sc, 39.5 * sc);
-            ctx.fillText(sideLines[1], PANEL_W / 2 * sc, 42.3 * sc);
+            ctx.fillStyle = isDemo ? '#ffc832' : '#10b981'; ctxRoundRect(ctx, pillX * sc, pillY * sc, pillW * sc, 5.5 * sc, 1 * sc); ctx.fill();
+            ctx.fillStyle = isDemo ? '#5b21b6' : '#ffffff'; ctx.font = fnt('bold', 5); ctx.textAlign = 'center';
+            ctx.fillText(pillTxt, (pillX + pillW / 2) * sc, (pillY + 3.7) * sc);
             // header
             const mCan = (t, z) => { ctx.font = fnt('bold', z); return ctx.measureText(t).width / sc; };
-            const libSizeCan = fitSize(libName, 9, 6, pillX - infoX - 1, mCan);
+            const libSizeCan = fitSize(libName, 9, 6, rightEnd - infoX, mCan);
             ctx.textAlign = 'left'; ctx.fillStyle = hex(accentDark); ctx.font = fnt('bold', libSizeCan);
             ctx.fillText(libName, infoX * sc, 8.5 * sc);
             ctx.fillStyle = hex(lc); ctx.font = fnt('italic', 4.8);
             ctx.fillText('Managed by Samarthak Software', infoX * sc, 12 * sc);
-            ctx.fillStyle = isDemo ? '#ffc832' : '#10b981'; ctxRoundRect(ctx, pillX * sc, 3 * sc, pillW * sc, 5.5 * sc, 1 * sc); ctx.fill();
-            ctx.fillStyle = isDemo ? '#5b21b6' : '#ffffff'; ctx.font = fnt('bold', 5); ctx.textAlign = 'center';
-            ctx.fillText(pillTxt, (pillX + pillW / 2) * sc, 6.7 * sc);
             ctx.strokeStyle = hex(lineCol); ctx.lineWidth = 0.3 * sc;
             ctx.beginPath(); ctx.moveTo(infoX * sc, 14.5 * sc); ctx.lineTo(rightEnd * sc, 14.5 * sc); ctx.stroke();
             // name
