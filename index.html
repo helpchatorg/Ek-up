@@ -2132,6 +2132,7 @@
             <button onclick="closeBlockModal()" style="background:var(--grey);">Cancel</button>
             <button onclick="confirmBlockDashboard()" style="background:#dc2626;">🔒 Block Dashboard</button>
         </div>
+        <div id="block-history-box" style="margin-top:14px; border-top:1px solid #e2e8f0; padding-top:10px;"></div>
     </div>
 </div>
 
@@ -7360,9 +7361,9 @@
                     absentDate.setHours(parseInt(sh.end.split(':')[0]), parseInt(sh.end.split(':')[1]), 0, 0);
                     const holidayNotice = getAttendanceBlockReasonFor(s, todayStr);
                     if (holidayNotice) {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title, feeLocked: attFeeDueOnDay(s, todayStr, sh.end), adminLocked: attBlockedOnDay(s, todayStr, sh) });
                     } else {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end) });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end), adminLocked: attBlockedOnDay(s, todayStr, sh) });
                     }
                 }
             }
@@ -7434,7 +7435,61 @@
             return dayEnd > due;
         } catch (e) { return false; }
     }
-    function absentLabelHtml(a) { return '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + (a.feeDue ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : ''); }
+    // Was the dashboard fee-locked (due date + 5 days passed) on the given day? Used to tag HOLIDAY records.
+    function attFeeLockedOnDay(st, ds, shiftEnd) {
+        try {
+            const dayEnd = new Date(ds + 'T' + (shiftEnd || '23:59') + ':00');
+            const hist = (st.feeHistory || []).filter(f => !f.entryDate || new Date(f.entryDate) <= dayEnd);
+            let due = new Date(st.date);
+            if (hist.length) {
+                const last = hist.slice().sort((x, y) => new Date(y.month) - new Date(x.month))[0];
+                due = new Date(last.month + '-01'); due.setMonth(due.getMonth() + 1); due.setDate(new Date(st.date).getDate());
+            } else due.setDate(due.getDate() + 30);
+            return Math.floor((dayEnd - due) / (1000 * 60 * 60 * 24)) >= 5;
+        } catch (e) { return false; }
+    }
+    // Was the student's dashboard blocked by the admin at any time during that day's shift? Uses the block/unblock history (blockHistory).
+    function attBlockedOnDay(st, ds, sh) {
+        try {
+            const sMs = new Date(ds + 'T' + ((sh && sh.start) || '00:00') + ':00').getTime();
+            const eMs = new Date(ds + 'T' + ((sh && sh.end) || '23:59') + ':00').getTime();
+            const periods = (Array.isArray(st.blockHistory) ? st.blockHistory : []).map(x => ({ from: new Date(x.from).getTime(), to: x.to ? new Date(x.to).getTime() : Infinity }));
+            // block made before history existed: still blocked now, started at blockedAt
+            if (st.isBlocked && st.blockedAt && !periods.some(x => x.to === Infinity)) periods.push({ from: new Date(st.blockedAt).getTime(), to: Infinity });
+            return periods.some(x => x.from <= eMs && x.to >= sMs);
+        } catch (e) { return false; }
+    }
+    // Status text for PDF rows: base status + every label (plain text, PDF fonts have no emoji)
+    function attPdfStatus(student, dateStr, base) {
+        const sh = config.shifts.find(x => x.id === student.shift);
+        const rec = attendances.find(a => a.regNo === student.regNo && getLocalDateStr(a.date) === dateStr && a.status === base);
+        let fee, adm;
+        if (rec) { fee = base === 'HOLIDAY' ? rec.feeLocked : rec.feeDue; adm = rec.adminLocked; }
+        else { fee = sh ? attFeeDueOnDay(student, dateStr, sh.end) : false; adm = sh ? attBlockedOnDay(student, dateStr, sh) : false; }
+        let t = base;
+        if (fee) t += '\nFees Due - attendance locked';
+        if (adm) t += '\nDashboard locked by admin';
+        return t;
+    }
+    // Case 9: entry done, exit not done, and admin locked the dashboard between entry and shift end
+    function attLockedAfterEntry(a, st) {
+        try {
+            if (!a || a.attStatus !== 'invalid' || !a.entry) return false;
+            st = st || students.find(x => x.regNo === a.regNo); if (!st) return false;
+            const sh = config.shifts.find(x => x.id === st.shift); if (!sh || !sh.end) return false;
+            const ds = getLocalDateStr(a.date);
+            const sMs = new Date(a.entry.time).getTime();
+            const eMs = new Date(ds + 'T' + sh.end + ':00').getTime();
+            const periods = (Array.isArray(st.blockHistory) ? st.blockHistory : []).map(x => ({ from: new Date(x.from).getTime(), to: x.to ? new Date(x.to).getTime() : Infinity }));
+            if (st.isBlocked && st.blockedAt && !periods.some(x => x.to === Infinity)) periods.push({ from: new Date(st.blockedAt).getTime(), to: Infinity });
+            return periods.some(x => x.from >= sMs && x.from <= eMs);
+        } catch (e) { return false; }
+    }
+    function lockedAfterEntryLabelHtml(a) { return attLockedAfterEntry(a) ? '<br><span style="color:#7c2d12;font-size:0.66rem;font-weight:800;">🔒 Locked by admin after entry, exit not possible</span>' : ''; }
+    function attPdfInvalidStatus(a, st) { return attLockedAfterEntry(a, st) ? 'ABSENT\nLocked by admin after entry, exit not possible' : 'ABSENT'; }
+    function adminLockLabelHtml(a) { return a.adminLocked ? '<br><span style="color:#7c2d12;font-size:0.66rem;font-weight:800;">🔒 Dashboard locked by admin</span>' : ''; }
+    function holidayFeeLabelHtml(a) { return (a.feeLocked ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : '') + adminLockLabelHtml(a); }
+    function absentLabelHtml(a) { return '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + (a.feeDue ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : '') + adminLockLabelHtml(a); }
     function attRank(a) { return a.attStatus === 'completed' ? 4 : (a.attStatus === 'pending_exit' ? 3 : (a.status === 'PRESENT' ? 3 : (a.attStatus === 'invalid' ? 2 : 1))); }
     function reconcileAttendanceAll() {
         try {
@@ -7466,7 +7521,7 @@
                     if (pend) { pend.attStatus = 'invalid'; changed = true; continue; }
                     if (recs.length) continue;
                     const hol = getAttendanceBlockReasonFor(st, ds), when = new Date(ds + 'T' + sh.end + ':00').toISOString();
-                    attendances.push(hol ? { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'HOLIDAY', holidayTitle: hol.title } : { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(st, ds, sh.end) });
+                    attendances.push(hol ? { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'HOLIDAY', holidayTitle: hol.title, feeLocked: attFeeDueOnDay(st, ds, sh.end), adminLocked: attBlockedOnDay(st, ds, sh) } : { regNo: st.regNo, name: st.name, date: when, photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(st, ds, sh.end), adminLocked: attBlockedOnDay(st, ds, sh) });
                     changed = true;
                 }
             });
@@ -8443,10 +8498,10 @@
             const exitTime = a.exit ? formatAppTime(a.exit.time) : (a.attStatus === 'pending_exit' || a.attStatus === 'invalid' ? 'EXIT PENDING' : '--:--');
             const durationStr = a.durationMinutes ? a.durationMinutes + ' min' : '--';
             let statusHtml = '';
-            if (a.status === 'HOLIDAY') statusHtml = `<span style="color:#c2410c;font-weight:800;">🏖️ HOLIDAY${a.holidayTitle ? ' (' + a.holidayTitle + ')' : ''}</span>`;
+            if (a.status === 'HOLIDAY') statusHtml = `<span style="color:#c2410c;font-weight:800;">🏖️ HOLIDAY${a.holidayTitle ? ' (' + a.holidayTitle + ')' : ''}</span>` + holidayFeeLabelHtml(a);
             else if (a.attStatus === 'completed') statusHtml = '<span class="att-status-completed">✅ PRESENT</span>';
             else if (a.attStatus === 'pending_exit') statusHtml = '<span class="att-status-pending">⏳ EXIT PENDING</span>';
-            else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
+            else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + lockedAfterEntryLabelHtml(a);
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
             else statusHtml = absentLabelHtml(a);
             tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + statusHtml + partialChipHtml(a) + '</td>';
@@ -8644,7 +8699,7 @@
                 rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT"]);
                 presentCount++;
             } else if (holidayNoticeDay) {
-                rows.push([displayDate, dayFull, "--:--", "--:--", '--', "HOLIDAY"]);
+                rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'HOLIDAY')]);
                 holidayCount++;
             } else {
                 // pending_exit: skip if the shift is still ongoing, otherwise EXIT PENDING (PRESENT)
@@ -8660,12 +8715,12 @@
                 const invalidRecord = attendances.find(a => a.regNo === student.regNo && getLocalDateStr(a.date) === dateStr && a.attStatus === 'invalid');
                 if (invalidRecord) {
                     const entryT = invalidRecord.entry ? formatAppTime(invalidRecord.entry.time) : formatAppTime(invalidRecord.date);
-                    rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "ABSENT"]);
+                    rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', attPdfInvalidStatus(invalidRecord, student)]);
                     absentCount++;
                     continue;
                 }
                 if (shiftStillRunning) continue;
-                rows.push([displayDate, dayFull, "--:--", "--:--", '--', "ABSENT"]);
+                rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'ABSENT')]);
                 absentCount++;
             }
         }
@@ -8748,18 +8803,18 @@
                     2: { cellWidth: 26, halign: 'center' },
                     3: { cellWidth: 26, halign: 'center' },
                     4: { cellWidth: 22, halign: 'center' },
-                    5: { cellWidth: 26, halign: 'center' }
+                    5: { cellWidth: 50, halign: 'center' }
                 },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 didParseCell: function(hookData) {
-                    if (hookData.section === 'body' && hookData.column.index === 5) {
-                        if (hookData.cell.raw === 'PRESENT') {
+                    if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1) hookData.cell.styles.fontSize = 7.5;
+                        if (String(hookData.cell.raw) === 'PRESENT') {
                             hookData.cell.styles.textColor = [22, 163, 74];
                             hookData.cell.styles.fontStyle = 'bold';
-                        } else if (hookData.cell.raw === 'ABSENT') {
+                        } else if (String(hookData.cell.raw).indexOf('ABSENT') === 0) {
                             hookData.cell.styles.textColor = [220, 38, 38];
                             hookData.cell.styles.fontStyle = 'bold';
-                        } else if (hookData.cell.raw === 'HOLIDAY') {
+                        } else if (String(hookData.cell.raw).indexOf('HOLIDAY') === 0) {
                             hookData.cell.styles.textColor = [194, 65, 12];
                             hookData.cell.styles.fontStyle = 'bold';
                         }
@@ -8842,7 +8897,7 @@
                     const durStr = record.durationMinutes ? record.durationMinutes + ' min' : '--';
                     rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT"]); presentCount++;
                 } else if (holidayNoticeDay) {
-                    rows.push([displayDate, dayFull, "--:--", "--:--", '--', "HOLIDAY"]); holidayCount++;
+                    rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'HOLIDAY')]); holidayCount++;
                 } else {
                     const pendingRecord = attendances.find(a => a.regNo === student.regNo && getLocalDateStr(a.date) === dateStr && a.attStatus === 'pending_exit');
                     if (pendingRecord) {
@@ -8854,11 +8909,11 @@
                     const invalidRecord = attendances.find(a => a.regNo === student.regNo && getLocalDateStr(a.date) === dateStr && a.attStatus === 'invalid');
                     if (invalidRecord) {
                         const entryT = invalidRecord.entry ? formatAppTime(invalidRecord.entry.time) : formatAppTime(invalidRecord.date);
-                        rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "ABSENT"]); absentCount++;
+                        rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', attPdfInvalidStatus(invalidRecord, student)]); absentCount++;
                         continue;
                     }
                     if (shiftStillRunning) continue;
-                    rows.push([displayDate, dayFull, "--:--", "--:--", '--', "ABSENT"]); absentCount++;
+                    rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'ABSENT')]); absentCount++;
                 }
             }
             grandPresent += presentCount; grandAbsent += absentCount; grandHoliday += holidayCount;
@@ -8913,13 +8968,13 @@
                     body: rows,
                     headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 9, halign: 'center', cellPadding: 4 },
                     bodyStyles: { fontSize: 9, cellPadding: 3.5 },
-                    columnStyles: { 0: { cellWidth: 28, halign: 'center' }, 1: { cellWidth: 'auto', halign: 'center', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } }, 2: { cellWidth: 26, halign: 'center' }, 3: { cellWidth: 26, halign: 'center' }, 4: { cellWidth: 22, halign: 'center' }, 5: { cellWidth: 26, halign: 'center' } },
+                    columnStyles: { 0: { cellWidth: 28, halign: 'center' }, 1: { cellWidth: 'auto', halign: 'center', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } }, 2: { cellWidth: 26, halign: 'center' }, 3: { cellWidth: 26, halign: 'center' }, 4: { cellWidth: 22, halign: 'center' }, 5: { cellWidth: 50, halign: 'center' } },
                     alternateRowStyles: { fillColor: [248, 250, 252] },
                     didParseCell: function(hookData) {
-                        if (hookData.section === 'body' && hookData.column.index === 5) {
-                            if (hookData.cell.raw === 'PRESENT') { hookData.cell.styles.textColor = [22, 163, 74]; hookData.cell.styles.fontStyle = 'bold'; }
-                            else if (hookData.cell.raw === 'ABSENT') { hookData.cell.styles.textColor = [220, 38, 38]; hookData.cell.styles.fontStyle = 'bold'; }
-                            else if (hookData.cell.raw === 'HOLIDAY') { hookData.cell.styles.textColor = [194, 65, 12]; hookData.cell.styles.fontStyle = 'bold'; }
+                        if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1) hookData.cell.styles.fontSize = 7.5;
+                            if (String(hookData.cell.raw) === 'PRESENT') { hookData.cell.styles.textColor = [22, 163, 74]; hookData.cell.styles.fontStyle = 'bold'; }
+                            else if (String(hookData.cell.raw).indexOf('ABSENT') === 0) { hookData.cell.styles.textColor = [220, 38, 38]; hookData.cell.styles.fontStyle = 'bold'; }
+                            else if (String(hookData.cell.raw).indexOf('HOLIDAY') === 0) { hookData.cell.styles.textColor = [194, 65, 12]; hookData.cell.styles.fontStyle = 'bold'; }
                         }
                         if (hookData.section === 'body' && hookData.column.index === 3) {
                             if (hookData.cell.raw === 'EXIT PENDING' || hookData.cell.raw === 'Pending Exit' || hookData.cell.raw === 'Exit Pending') { hookData.cell.styles.textColor = [217, 119, 6]; hookData.cell.styles.fontStyle = 'bold'; }
@@ -8969,9 +9024,9 @@
                     const absentDate = new Date(todayStr + 'T' + sh.end + ':00');
                     const holidayNotice = getAttendanceBlockReasonFor(s, todayStr);
                     if (holidayNotice) {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'HOLIDAY', holidayTitle: holidayNotice.title, feeLocked: attFeeDueOnDay(s, todayStr, sh.end), adminLocked: attBlockedOnDay(s, todayStr, sh) });
                     } else {
-                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end) });
+                        attendances.push({ regNo: s.regNo, name: s.name, date: absentDate.toISOString(), photo: null, status: 'ABSENT', feeDue: attFeeDueOnDay(s, todayStr, sh.end), adminLocked: attBlockedOnDay(s, todayStr, sh) });
                     }
                     changed = true;
                 }
@@ -8998,10 +9053,10 @@
             const durationStr = a.durationMinutes ? a.durationMinutes + ' min' : '--';
             const qrBadge = a.entry && a.entry.qrVerified ? '<span style="color:#16a34a;font-size:0.7rem;font-weight:800;">✅ Verified</span>' : '<span style="color:#94a3b8;font-size:0.7rem;">N/A</span>';
             let statusHtml = '';
-            if (a.status === 'HOLIDAY') statusHtml = `<span style="color:#c2410c;font-weight:800;">🏖️ HOLIDAY${a.holidayTitle ? ' (' + a.holidayTitle + ')' : ''}</span>`;
+            if (a.status === 'HOLIDAY') statusHtml = `<span style="color:#c2410c;font-weight:800;">🏖️ HOLIDAY${a.holidayTitle ? ' (' + a.holidayTitle + ')' : ''}</span>` + holidayFeeLabelHtml(a);
             else if (a.attStatus === 'completed') statusHtml = '<span class="att-status-completed">✅ PRESENT</span>';
             else if (a.attStatus === 'pending_exit') statusHtml = '<span class="att-status-pending">⏳ EXIT PENDING</span>';
-            else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>';
+            else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + lockedAfterEntryLabelHtml(a);
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
             else statusHtml = absentLabelHtml(a);
 
@@ -11030,12 +11085,30 @@
         document.querySelectorAll('.settings-dropdown.open').forEach(d => d.classList.remove('open'));
         if (!wasOpen) dd.classList.add('open');
     }
+    function blockHistoryFmt(iso) { try { return formatAppDate(iso) + ', ' + formatAppTime(iso); } catch (e) { return iso || ''; } }
+    function renderBlockHistory(st) {
+        const box = document.getElementById('block-history-box'); if (!box) return;
+        const h = (st && Array.isArray(st.blockHistory)) ? st.blockHistory : [];
+        const blocks = h.length, unblocks = h.filter(x => x.to).length;
+        let html = '<div style="font-size:0.72rem; font-weight:800; color:var(--grey); margin-bottom:6px;">📜 BLOCK HISTORY</div>';
+        html += '<div style="font-size:0.74rem; font-weight:800; margin-bottom:6px;">🔒 Blocked: ' + blocks + ' time(s) &nbsp;|&nbsp; 🔓 Unblocked: ' + unblocks + ' time(s)</div>';
+        if (!blocks) html += '<div style="font-size:0.72rem; color:var(--grey);">No block history yet.</div>';
+        else {
+            html += '<div style="max-height:150px; overflow-y:auto; font-size:0.72rem; line-height:1.5;">';
+            h.slice().reverse().forEach(x => {
+                html += '<div style="padding:5px 0; border-bottom:1px dashed #e2e8f0;">🔒 Blocked: <b>' + blockHistoryFmt(x.from) + '</b>' + (x.reason ? '<br><span style="color:var(--grey);">Reason: ' + String(x.reason).replace(/</g, '&lt;') + '</span>' : '') + '<br>' + (x.to ? '🔓 Unblocked: <b>' + blockHistoryFmt(x.to) + '</b>' : '<span style="color:#dc2626;font-weight:800;">Still blocked</span>') + '</div>';
+            });
+            html += '</div>';
+        }
+        box.innerHTML = html;
+    }
     function openBlockModal(id) {
         document.querySelectorAll('.settings-dropdown.open').forEach(d => d.classList.remove('open'));
         blockModalStudentId = id;
         const s = students.find(x => x.id === id);
         document.getElementById('block-modal-student-name').innerText = `${s.name} (${s.regNo})`;
         document.getElementById('block-reason-input').value = '';
+        renderBlockHistory(s);
         document.getElementById('block-modal').style.display = 'flex';
     }
     function closeBlockModal() {
@@ -11051,6 +11124,8 @@
         s.isBlocked = true;
         s.blockReason = reason;
         s.blockedAt = new Date().toISOString();
+        if (!Array.isArray(s.blockHistory)) s.blockHistory = [];
+        s.blockHistory.push({ from: s.blockedAt, to: null, reason: reason });
         saveToLocal();
         closeBlockModal();
         renderHistory();
@@ -11086,6 +11161,10 @@
         if (!confirm('Unblock this student\'s dashboard and restore access?')) return;
         const s = students.find(x => x.id === id);
         if (!s) return;
+        if (!Array.isArray(s.blockHistory)) s.blockHistory = [];
+        let openP = s.blockHistory.slice().reverse().find(x => !x.to);
+        if (!openP && s.blockedAt) { openP = { from: s.blockedAt, to: null, reason: s.blockReason || '' }; s.blockHistory.push(openP); } // older block made before history existed
+        if (openP) openP.to = new Date().toISOString();
         s.isBlocked = false;
         s.blockReason = '';
         s.blockedAt = null;
@@ -13374,7 +13453,13 @@ function subPolicyHtml(){
         '• <b>After day 5:</b> new student registration, all student-related work and fees management are restricted automatically.<br>' +
         '• <b>Day 8:</b> system configuration is locked — you can view it but cannot edit or change anything.<br>' +
         '• <b>After day 10:</b> your dashboard is locked. When you try to log in you will see a lock screen where you can grant the Super Admin the authority to accept the renewal on your behalf. Once granted and accepted, the amount is deducted from your wallet (the balance may go negative), the dashboard unlocks immediately and works exactly as before.<br><br>' +
-        '<b>Cancelling:</b> the Admin or the Super Admin can cancel the subscription at any time. A cancelled plan gets a <b>10-day grace period</b> (instead of 5), after which the same restrictions apply: registrations, student work and fees (after day 10), system configuration lock (day 13) and dashboard lock (after day 15). A new renewal restores everything.<br><br>' +
+        '<b>If the plan is cancelled:</b><br>' +
+        '• The Admin or the Super Admin can cancel the subscription at any time.<br>' +
+        '• <b>Days 1–10:</b> grace period (instead of 5) — everything keeps working.<br>' +
+        '• <b>After day 10:</b> new student registration, all student-related work and fees management are restricted.<br>' +
+        '• <b>Day 13:</b> system configuration is locked — you can view it but cannot edit or change anything.<br>' +
+        '• <b>After day 15:</b> your dashboard is locked.<br>' +
+        '• A new renewal restores everything.<br><br>' +
         '<b>Changing plans:</b> a new plan starts the day you accept it, so the remaining days of your current plan are lost. Renewing the same plan, or switching when only 1–2 days are left, keeps your remaining days.</div></details>';
 }
 
