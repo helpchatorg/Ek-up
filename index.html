@@ -7202,6 +7202,17 @@
         const n = (a.partialExits || []).length; if (!n) return '';
         return '<' + (inline ? 'span style="margin-left:6px;vertical-align:middle;"' : 'div style="margin-top:4px;"') + '><button type="button" onclick="showPartialExits(\'' + a.regNo + '\',\'' + a.date + '\')" style="width:auto;margin:0;padding:2px 9px;border-radius:12px;border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;font-size:0.62rem;font-weight:800;cursor:pointer;line-height:1.5;">🚶 ' + n + ' partial exit' + (n > 1 ? 's' : '') + '</button></' + (inline ? 'span' : 'div') + '>';
     }
+    // chip goes on the first line next to the status; extra labels (fees / admin lock) stay on the lines below
+    function withPartialChip(statusHtml, a, inline) {
+        const chip = partialChipHtml(a, inline); if (!chip) return statusHtml;
+        const i = statusHtml.indexOf('<br>');
+        return i < 0 ? statusHtml + chip : statusHtml.slice(0, i) + chip + statusHtml.slice(i);
+    }
+    // PDF: only a count label, no details
+    function pdfPartialText(a) {
+        const n = ((a && a.partialExits) || []).length; if (!n) return '';
+        return ' | ' + n + ' partial exit' + (n > 1 ? 's' : '');
+    }
     function showPartialExits(regNo, dateIso) {
         const a = attendances.find(x => x.regNo === regNo && x.date === dateIso); if (!a) return;
         const list = a.partialExits || [];
@@ -7486,7 +7497,7 @@
         } catch (e) { return false; }
     }
     function lockedAfterEntryLabelHtml(a) { return attLockedAfterEntry(a) ? '<br><span style="color:#7c2d12;font-size:0.66rem;font-weight:800;">🔒 Locked by admin after entry, exit not possible</span>' : ''; }
-    function attPdfInvalidStatus(a, st) { return attLockedAfterEntry(a, st) ? 'ABSENT\nLocked by admin after entry, exit not possible' : 'ABSENT'; }
+    function attPdfInvalidStatus(a, st) { return 'ABSENT' + pdfPartialText(a) + (attLockedAfterEntry(a, st) ? '\nLocked by admin after entry, exit not possible' : ''); }
     function adminLockLabelHtml(a) { return a.adminLocked ? '<br><span style="color:#7c2d12;font-size:0.66rem;font-weight:800;">🔒 Dashboard locked by admin</span>' : ''; }
     function holidayFeeLabelHtml(a) { return (a.feeLocked ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : '') + adminLockLabelHtml(a); }
     function absentLabelHtml(a) { return '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + (a.feeDue ? '<br><span style="color:#b45309;font-size:0.66rem;font-weight:800;">💰 Fees Due — attendance locked</span>' : '') + adminLockLabelHtml(a); }
@@ -8504,7 +8515,7 @@
             else if (a.attStatus === 'invalid') statusHtml = '<span style="color:#dc2626;font-weight:800;">❌ ABSENT</span>' + lockedAfterEntryLabelHtml(a);
             else if (a.status === 'PRESENT') statusHtml = '<span style="color:#16a34a;font-weight:800;">✅ PRESENT</span>';
             else statusHtml = absentLabelHtml(a);
-            tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + statusHtml + partialChipHtml(a) + '</td>';
+            tr.innerHTML = '<td>' + formatAppDate(a.date) + '</td><td>' + entryTime + '</td><td>' + exitTime + '</td><td>' + durationStr + '</td><td>' + withPartialChip(statusHtml, a, true) + '</td>';
             attBody.appendChild(tr);
         });
         // Attendance See More button
@@ -8696,7 +8707,7 @@
                 const entryT = record.entry ? formatAppTime(record.entry.time) : formatAppTime(record.date);
                 const exitT = record.exit ? formatAppTime(record.exit.time) : '--:--';
                 const durStr = record.durationMinutes ? record.durationMinutes + ' min' : '--';
-                rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT"]);
+                rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT" + pdfPartialText(record)]);
                 presentCount++;
             } else if (holidayNoticeDay) {
                 rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'HOLIDAY')]);
@@ -8707,7 +8718,7 @@
                 if (pendingRecord) {
                     if (shiftStillRunning) continue;
                     const entryT = pendingRecord.entry ? formatAppTime(pendingRecord.entry.time) : formatAppTime(pendingRecord.date);
-                    rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "PRESENT"]);
+                    rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "PRESENT" + pdfPartialText(pendingRecord)]);
                     presentCount++;
                     continue;
                 }
@@ -8807,8 +8818,8 @@
                 },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 didParseCell: function(hookData) {
-                    if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1) hookData.cell.styles.fontSize = 7.5;
-                        if (String(hookData.cell.raw) === 'PRESENT') {
+                    if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1 || String(hookData.cell.raw).indexOf(' | ') > -1) hookData.cell.styles.fontSize = 7.5;
+                        if (String(hookData.cell.raw).indexOf('PRESENT') === 0) {
                             hookData.cell.styles.textColor = [22, 163, 74];
                             hookData.cell.styles.fontStyle = 'bold';
                         } else if (String(hookData.cell.raw).indexOf('ABSENT') === 0) {
@@ -8895,7 +8906,7 @@
                     const entryT = record.entry ? formatAppTime(record.entry.time) : formatAppTime(record.date);
                     const exitT = record.exit ? formatAppTime(record.exit.time) : '--:--';
                     const durStr = record.durationMinutes ? record.durationMinutes + ' min' : '--';
-                    rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT"]); presentCount++;
+                    rows.push([displayDate, dayFull, entryT, exitT, durStr, "PRESENT" + pdfPartialText(record)]); presentCount++;
                 } else if (holidayNoticeDay) {
                     rows.push([displayDate, dayFull, "--:--", "--:--", '--', attPdfStatus(student, dateStr, 'HOLIDAY')]); holidayCount++;
                 } else {
@@ -8903,7 +8914,7 @@
                     if (pendingRecord) {
                         if (shiftStillRunning) continue;
                         const entryT = pendingRecord.entry ? formatAppTime(pendingRecord.entry.time) : formatAppTime(pendingRecord.date);
-                        rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "PRESENT"]); presentCount++;
+                        rows.push([displayDate, dayFull, entryT, "EXIT PENDING", '--', "PRESENT" + pdfPartialText(pendingRecord)]); presentCount++;
                         continue;
                     }
                     const invalidRecord = attendances.find(a => a.regNo === student.regNo && getLocalDateStr(a.date) === dateStr && a.attStatus === 'invalid');
@@ -8971,8 +8982,8 @@
                     columnStyles: { 0: { cellWidth: 28, halign: 'center' }, 1: { cellWidth: 'auto', halign: 'center', cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 } }, 2: { cellWidth: 26, halign: 'center' }, 3: { cellWidth: 26, halign: 'center' }, 4: { cellWidth: 22, halign: 'center' }, 5: { cellWidth: 50, halign: 'center' } },
                     alternateRowStyles: { fillColor: [248, 250, 252] },
                     didParseCell: function(hookData) {
-                        if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1) hookData.cell.styles.fontSize = 7.5;
-                            if (String(hookData.cell.raw) === 'PRESENT') { hookData.cell.styles.textColor = [22, 163, 74]; hookData.cell.styles.fontStyle = 'bold'; }
+                        if (hookData.section === 'body' && hookData.column.index === 5) { if (String(hookData.cell.raw).indexOf('\n') > -1 || String(hookData.cell.raw).indexOf(' | ') > -1) hookData.cell.styles.fontSize = 7.5;
+                            if (String(hookData.cell.raw).indexOf('PRESENT') === 0) { hookData.cell.styles.textColor = [22, 163, 74]; hookData.cell.styles.fontStyle = 'bold'; }
                             else if (String(hookData.cell.raw).indexOf('ABSENT') === 0) { hookData.cell.styles.textColor = [220, 38, 38]; hookData.cell.styles.fontStyle = 'bold'; }
                             else if (String(hookData.cell.raw).indexOf('HOLIDAY') === 0) { hookData.cell.styles.textColor = [194, 65, 12]; hookData.cell.styles.fontStyle = 'bold'; }
                         }
@@ -9076,7 +9087,7 @@
                 <td>${entryPhotoHtml}</td>
                 <td>${exitPhotoHtml}</td>
                 <td>${qrBadge}</td>
-                <td style="white-space:nowrap;">${statusHtml}${partialChipHtml(a, true)}</td>`;
+                <td style="white-space:nowrap;">${withPartialChip(statusHtml, a, true)}</td>`;
             tbody.appendChild(tr);
         });
         if (!tbody.innerHTML) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#94a3b8; padding:20px;">No attendance records found.</td></tr>';
