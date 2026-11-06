@@ -3998,10 +3998,10 @@
             <div id="stu-profile-content">
                 <img id="stu-display-photo" src="" style="width:96px; height:96px; border-radius:50%; object-fit:cover; border:3px solid #fff; box-shadow:0 4px 12px rgba(37,99,235,0.2);">
                 <div>
-                    <h3 id="stu-display-name" style="margin:0 0 4px; color:var(--primary); font-family:'Sora',sans-serif; font-size:1.1rem;"></h3>
-                    <p id="stu-display-reg" style="margin:3px 0; font-size:0.72rem; font-weight:800; color:var(--grey);"></p>
-                    <p id="stu-display-mobile" style="margin:2px 0; font-size:0.75rem; color:var(--dark);"></p>
-                    <p id="stu-display-email" style="margin:2px 0; font-size:0.72rem; color:var(--grey); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></p>
+                    <h3 id="stu-display-name" style="margin:0 0 6px; color:var(--primary); font-family:'Sora',sans-serif; font-size:1.5rem;"></h3>
+                    <p id="stu-display-reg" style="margin:4px 0; font-size:0.72rem; font-weight:800; color:var(--grey);"></p>
+                    <p id="stu-display-mobile" style="margin:4px 0; font-size:0.75rem; color:var(--dark);"></p>
+                    <p id="stu-display-email" style="margin:4px 0; font-size:0.72rem; color:var(--grey); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></p>
                 </div>
             </div>
 
@@ -4034,7 +4034,7 @@
                 <p style="font-size:0.65rem; color:#9a3412; margin:10px 0 0;">🔴 Red-marked dates have attendance disabled for your shift due to a holiday notice.</p>
             </div>
 
-            <div class="grid-2-col" style="margin-bottom:18px;">
+            <div class="grid-2-col" style="margin-bottom:18px; display:grid; gap:18px;">
                 <div class="stat-card">
                     <label>ASSIGNED SEAT</label>
                     <div class="stat-value" id="stu-display-seat"></div>
@@ -8356,11 +8356,15 @@
         updateStudentNotifBell();
         document.getElementById('stu-display-photo').src = s.photo || '';
         document.getElementById('stu-display-name').innerText = s.name;
-        const stuRegEl = document.getElementById('stu-display-reg');
-        stuRegEl.innerText = "REGISTRATION NUMBER: " + s.regNo;
-        stuRegEl.style.fontSize = Math.min(0.72, 20 / stuRegEl.innerText.length) + 'rem';   // keeps the whole number on one line
-        document.getElementById('stu-display-mobile').innerText = "📱 " + s.mobile;
-        document.getElementById('stu-display-email').innerText = "✉ " + s.email;
+        const fitLine = (id, label, value, cap, k) => {
+            const el = document.getElementById(id); if (!el) return;
+            const v = String(value || '—');
+            el.innerHTML = '<span style="font-weight:700;">' + label + '</span> <b style="color:var(--dark);">' + prEsc(v) + '</b>';
+            el.style.fontSize = Math.max(0.5, Math.min(cap, k / (label.length + v.length + 1))) + 'rem';   // as big as fits, always on one line
+        };
+        fitLine('stu-display-reg', 'REGISTRATION NUMBER:', s.regNo, 0.88, 27);
+        fitLine('stu-display-mobile', 'Mobile Number:', s.mobile, 0.72, 25);
+        fitLine('stu-display-email', 'Email Address:', s.email, 0.7, 25);
         document.getElementById('stu-display-seat').innerText = "No. " + seatLabel(s.seat);
         const liveShift = config.shifts.find(sh => sh.id === s.shift);
         const liveShiftDisplay = liveShift ? liveShift.name + (liveShift.start && liveShift.end ? ` (${liveShift.start}-${liveShift.end})` : '') : s.shiftName;
