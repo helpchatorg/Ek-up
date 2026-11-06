@@ -1255,13 +1255,15 @@
         .vekyc-cam-box { position: relative; width: 100%; aspect-ratio: 4/3; background:#0b1220; border-radius:16px; overflow:hidden; margin-bottom:14px; display:flex; align-items:center; justify-content:center; border:2px solid #7c3aed; box-shadow:0 0 0 4px rgba(124,58,237,0.12); }
         .vekyc-cam-box video { width:100%; height:100%; object-fit:cover; }
         /* AI avatar picture-in-picture tile (video-call style) */
-        #vekyc-ai-pip { position:absolute; right:8px; bottom:8px; width:21%; min-width:66px; max-width:96px; aspect-ratio:3/4; border-radius:14px; overflow:hidden; background:linear-gradient(160deg,#4c1d95,#1e1b4b); border:2px solid rgba(255,255,255,0.85); box-shadow:0 6px 18px rgba(0,0,0,0.45); z-index:3; transition:box-shadow .2s, border-color .2s; }
-        #vekyc-ai-pip.speaking { border-color:#a78bfa; box-shadow:0 0 0 3px rgba(167,139,250,0.55), 0 6px 18px rgba(0,0,0,0.45); }
+        #vekyc-ai-pip { position:absolute; right:8px; bottom:8px; width:21%; min-width:66px; max-width:96px; aspect-ratio:3/4; border-radius:18px; overflow:hidden; background:linear-gradient(160deg,#4c1d95,#1e1b4b); border:2px solid rgba(255,255,255,0.92); box-shadow:0 10px 26px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,58,237,0.35); z-index:3; transition:box-shadow .2s, border-color .2s; }
+        #vekyc-ai-pip.speaking { border-color:#c4b5fd; animation:pipglow 1.1s ease-in-out infinite; }
+        @keyframes pipglow { 0%,100%{ box-shadow:0 0 0 2px rgba(167,139,250,0.55), 0 10px 26px rgba(0,0,0,0.5); } 50%{ box-shadow:0 0 0 6px rgba(167,139,250,0.18), 0 10px 26px rgba(0,0,0,0.5); } }
         #vekyc-ai-pip svg, #vekyc-ai-pip .pip-art { width:100%; height:100%; display:block; }
         @media (min-width: 900px) { #vekyc-ai-pip { width:15%; min-width:84px; max-width:118px; } .vekyc-modal-content { max-width: 780px !important; } .vekyc-cam-box { aspect-ratio: 16/9 !important; } }
         @media (max-width: 899px) { .vekyc-cam-box { aspect-ratio: 3/4 !important; max-height: 66vh; } }
-        #vekyc-ai-pip .pip-name { position:absolute; left:0; right:0; bottom:0; background:linear-gradient(transparent,rgba(0,0,0,0.75)); color:#fff; font-size:0.52rem; font-weight:800; padding:8px 4px 3px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        #vekyc-ai-pip .pip-ai { position:absolute; top:4px; left:4px; background:#7c3aed; color:#fff; font-size:0.5rem; font-weight:800; padding:1px 5px; border-radius:8px; }
+        #vekyc-ai-pip .pip-name { position:absolute; left:6px; right:6px; bottom:6px; background:rgba(15,23,42,0.62); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); border:1px solid rgba(255,255,255,0.22); border-radius:20px; color:#fff; font-size:0.5rem; font-weight:800; padding:3px 6px 3px 15px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #vekyc-ai-pip .pip-name::before { content:''; position:absolute; left:6px; top:50%; width:5px; height:5px; margin-top:-2.5px; border-radius:50%; background:#22c55e; box-shadow:0 0 5px #22c55e; }
+        #vekyc-ai-pip .pip-ai { position:absolute; top:5px; left:5px; background:linear-gradient(135deg,#7c3aed,#ec4899); color:#fff; font-size:0.5rem; font-weight:800; letter-spacing:.4px; padding:2px 6px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.3); }
         #vekyc-ai-pip .pip-wave { position:absolute; top:5px; right:5px; display:flex; gap:2px; align-items:flex-end; height:10px; opacity:0; transition:opacity .2s; }
         #vekyc-ai-pip.speaking .pip-wave { opacity:1; }
         #vekyc-ai-pip .pip-wave i { width:2px; background:#c4b5fd; border-radius:2px; height:3px; animation:pipwave .7s ease-in-out infinite; }
@@ -11816,75 +11818,123 @@
     // ===== Realistic-style AI avatar (SVG) — a different look (skin, hair, outfit, glasses, backdrop) every session =====
     function vekycBuildAvatarSvg(gender) {
         const pick = a => a[Math.floor(Math.random() * a.length)];
-        const skins = [['#f6d3b3', '#e8b48a'], ['#ecbf96', '#d9a074'], ['#d9a579', '#c08659'], ['#c08a60', '#a56f46']];
+        const isF = gender === 'female';
+        const skins = [['#fbdcc2', '#eebd97'], ['#f2c9a3', '#dfa87d'], ['#e0b088', '#c78f64'], ['#c99468', '#ac774c']];
         const [sk1, sk2] = pick(skins);
-        const hairs = [['#1b1210', '#4a3a33'], ['#2b1a12', '#5b4033'], ['#3a2417', '#7a5a45'], ['#14100f', '#3a3433']];
+        const hairs = isF
+            ? [['#1a0f0c', '#5a4036'], ['#2d1810', '#8a5a3c'], ['#3b1d12', '#a0522d'], ['#0f0d0d', '#3d3a3a'], ['#4a2a18', '#b8793f']]
+            : [['#17110f', '#4d3d36'], ['#2a1a12', '#6b4a38'], ['#0f0d0d', '#3a3636'], ['#3a2417', '#7d5b46']];
         const [h1, h2] = pick(hairs);
-        const bgs = [['#4c1d95', '#1e1b4b'], ['#0f766e', '#064e3b'], ['#1d4ed8', '#1e3a8a'], ['#9a3412', '#431407'], ['#334155', '#0f172a'], ['#be185d', '#500724']];
+        const bgs = [['#3b1d8f', '#120b3d'], ['#0e7490', '#042f3d'], ['#1d4ed8', '#0b1d4d'], ['#9d174d', '#3b0a22'], ['#334155', '#0b1220'], ['#6d28d9', '#1e0a4a']];
         const [b1, b2] = pick(bgs);
-        const clothF = ['#db2777', '#7c3aed', '#0d9488', '#e11d48', '#f59e0b', '#2563eb', '#16a34a', '#9333ea', '#ea580c'];
-        const clothM = ['#2563eb', '#0f766e', '#475569', '#b91c1c', '#1e293b', '#7c3aed', '#16a34a', '#92400e', '#0369a1'];
-        const c = pick(gender === 'female' ? clothF : clothM);
-        const c2 = pick(['#ffffff', '#fde68a', '#e2e8f0', '#fbcfe8']);
-        const outfit = Math.floor(Math.random() * 4);
-        const glasses = Math.random() < 0.3;
-        const iris = pick(['#4a2c17', '#3b2314', '#2d1b10', '#5a3a22']);
-        const lip = gender === 'female' ? pick(['#b4375a', '#a52a4a', '#c0455f', '#9f3a46']) : '#a8554a';
-        const uid = 'a' + Math.floor(Math.random() * 1e6);
+        const accents = ['#a78bfa', '#38bdf8', '#34d399', '#f472b6', '#fbbf24', '#60a5fa'];
+        const ac = pick(accents);
+        const clothF = ['#1e293b', '#7c3aed', '#be185d', '#0f766e', '#b91c1c', '#1d4ed8', '#334155'];
+        const clothM = ['#1e293b', '#0f172a', '#1e3a8a', '#374151', '#14532d', '#3f2a56'];
+        const c = pick(isF ? clothF : clothM);
+        const c2 = pick(['#ffffff', '#f8fafc', '#fde8f1', '#e0f2fe']);
+        const outfit = Math.floor(Math.random() * 3);
+        const style = Math.floor(Math.random() * 3);
+        const glasses = !isF && Math.random() < 0.3 || isF && Math.random() < 0.18;
+        const iris = pick(['#5a3a22', '#3b2314', '#2d4a3e', '#1f3a5f', '#4a2c17']);
+        const lip = isF ? pick(['#c2335a', '#b02a50', '#d6456b', '#a8323f']) : '#b0605a';
+        const shadow = pick(['#a855f7', '#f472b6', '#fb923c', '#38bdf8']);
+        const u = 'a' + Math.floor(Math.random() * 1e6);
+
+        // ---------- outfit ----------
         let body = '';
-        if (gender === 'female') {
-            if (outfit === 0) body = `<path d="M6 120 C8 94 26 85 45 85 C64 85 82 94 84 120Z" fill="${c}"/><path d="M33 85 Q45 98 57 85" fill="url(#${uid}n)" stroke="${c}" stroke-width="1"/>`;
-            else if (outfit === 1) body = `<path d="M6 120 C8 94 26 85 45 85 C64 85 82 94 84 120Z" fill="${c}"/><path d="M32 85 L45 108 L58 85 Z" fill="${c2}"/><path d="M32 85 L45 110 L36 120 L24 120 Z M58 85 L45 110 L54 120 L66 120 Z" fill="${c}" opacity=".92"/><path d="M32 85 L45 110 M58 85 L45 110" stroke="rgba(0,0,0,.25)" stroke-width="1"/>`;
-            else if (outfit === 2) body = `<path d="M6 120 C8 94 26 85 45 85 C64 85 82 94 84 120Z" fill="${c}"/><path d="M28 86 C34 96 50 108 80 120 L66 120 C48 108 36 98 28 86Z" fill="${c2}" opacity=".9"/><path d="M33 85 Q45 94 57 85" fill="url(#${uid}n)"/><circle cx="62" cy="104" r="1.6" fill="#fbbf24"/>`;
-            else body = `<path d="M6 120 C8 94 26 85 45 85 C64 85 82 94 84 120Z" fill="${c}"/><path d="M34 85 L45 100 L56 85 Z" fill="url(#${uid}n)"/><path d="M34 85 L45 100 L56 85" stroke="rgba(0,0,0,.18)" stroke-width="1" fill="none"/>`;
+        const torso = `<path d="M0 120 C2 97 24 88 45 88 C66 88 88 97 90 120Z" fill="${c}"/><path d="M0 120 C2 97 24 88 45 88 C66 88 88 97 90 120Z" fill="url(#${u}cl)"/>`;
+        if (isF) {
+            if (outfit === 0) body = `${torso}<path d="M33 90 Q45 114 57 90 L61 120 L29 120Z" fill="${c2}"/><path d="M37 89 L45 102 L53 89Z" fill="url(#${u}n)"/><path d="M33 90 L45 114 L35 120 L21 120Z M57 90 L45 114 L55 120 L69 120Z" fill="${c}"/><path d="M33 90 L45 114 L35 120 M57 90 L45 114 L55 120" stroke="rgba(255,255,255,.22)" stroke-width=".9" fill="none"/><path d="M40 98 Q45 103 50 98" stroke="#fbbf24" stroke-width=".9" fill="none"/><circle cx="45" cy="103.2" r="1.5" fill="#fbbf24"/>`;
+            else if (outfit === 1) body = `${torso}<path d="M34 90 Q45 98 56 90 L60 120 L30 120Z" fill="${c2}"/><path d="M37 89 Q45 98 53 89Z" fill="url(#${u}n)"/><path d="M34 90 L42 120 L24 120 Z M56 90 L48 120 L66 120Z" fill="${c}"/><path d="M34 90 L42 120 M56 90 L48 120" stroke="rgba(255,255,255,.2)" stroke-width=".9"/><circle cx="45" cy="99.5" r="1.3" fill="${ac}"/>`;
+            else body = `${torso}<path d="M36 80 L36 92 Q45 98 54 92 L54 80Z" fill="${c}"/><path d="M36 80 L36 92 Q45 98 54 92 L54 80Z" fill="rgba(255,255,255,.1)"/><path d="M36 86 Q45 91 54 86" stroke="rgba(0,0,0,.25)" stroke-width="1" fill="none"/><path d="M28 104 Q45 114 62 104" stroke="${ac}" stroke-width="1" fill="none" opacity=".7"/>`;
         } else {
-            if (outfit === 0) body = `<path d="M4 120 C6 94 26 85 45 85 C64 85 84 94 86 120Z" fill="${c2}"/><path d="M36 85 L45 98 L54 85 L58 88 L45 104 L32 88Z" fill="${c}"/><path d="M45 98 L41 120 L49 120Z" fill="${c}" opacity=".85"/><path d="M30 86 L40 90 L45 100 L34 94Z M60 86 L50 90 L45 100 L56 94Z" fill="#fff" stroke="rgba(0,0,0,.15)" stroke-width=".8"/>`;
-            else if (outfit === 1) body = `<path d="M4 120 C6 94 26 85 45 85 C64 85 84 94 86 120Z" fill="${c}"/><path d="M34 85 Q45 95 56 85" fill="url(#${uid}n)" stroke="rgba(0,0,0,.2)" stroke-width="1"/>`;
-            else if (outfit === 2) body = `<path d="M4 120 C6 94 26 85 45 85 C64 85 84 94 86 120Z" fill="${c}"/><path d="M36 85 L45 96 L54 85 L54 89 L45 100 L36 89Z" fill="${c2}" opacity=".9"/><line x1="45" y1="100" x2="45" y2="120" stroke="rgba(0,0,0,.25)" stroke-width="1"/><circle cx="45" cy="104" r="1.2" fill="${c2}"/><circle cx="45" cy="112" r="1.2" fill="${c2}"/>`;
-            else body = `<path d="M4 120 C6 94 26 85 45 85 C64 85 84 94 86 120Z" fill="${c}"/><path d="M36 85 L45 100 L54 85 L58 88 L45 108 L32 88Z" fill="${c2}"/><path d="M30 86 L45 108 L38 120 L22 120Z M60 86 L45 108 L52 120 L68 120Z" fill="${c}" opacity=".95"/><path d="M30 86 L45 108 M60 86 L45 108" stroke="rgba(0,0,0,.28)" stroke-width="1"/>`;
+            if (outfit === 0) body = `${torso}<path d="M34 88 L45 104 L56 88 L60 120 L30 120Z" fill="#ffffff"/><path d="M43 96 L47 96 L48.4 101 L45 117 L41.6 101Z" fill="${ac}"/><path d="M42.3 94.5 L47.7 94.5 L47 97 L43 97Z" fill="${ac}"/><path d="M33 88 L45 101 L37 95Z M57 88 L45 101 L53 95Z" fill="#fff" stroke="rgba(0,0,0,.18)" stroke-width=".7"/><path d="M33 90 L45 112 L35 120 L19 120Z M57 90 L45 112 L55 120 L71 120Z" fill="${c}"/><path d="M33 90 L45 112 L35 120 M57 90 L45 112 L55 120" stroke="rgba(255,255,255,.18)" stroke-width=".9" fill="none"/>`;
+            else if (outfit === 1) body = `${torso}<path d="M34 88 L45 106 L56 88 L60 120 L30 120Z" fill="#f1f5f9"/><path d="M37 88 L45 100 L53 88Z" fill="url(#${u}n)"/><path d="M33 88 L44 99 L36 94Z M57 88 L46 99 L54 94Z" fill="#fff" stroke="rgba(0,0,0,.16)" stroke-width=".7"/><path d="M33 90 L45 112 L35 120 L19 120Z M57 90 L45 112 L55 120 L71 120Z" fill="${c}"/><path d="M33 90 L45 112 L35 120 M57 90 L45 112 L55 120" stroke="rgba(255,255,255,.18)" stroke-width=".9" fill="none"/>`;
+            else body = `${torso}<path d="M35 79 L35 92 Q45 98 55 92 L55 79Z" fill="${c}"/><path d="M35 79 L35 92 Q45 98 55 92 L55 79Z" fill="rgba(255,255,255,.1)"/><path d="M35 85 Q45 90 55 85" stroke="rgba(0,0,0,.28)" stroke-width="1" fill="none"/>`;
         }
-        const hairBack = gender === 'female'
-            ? `<path d="M21 54 C16 22 34 10 45 10 C60 10 76 22 69 56 C72 80 78 96 66 104 L24 104 C12 96 18 80 21 54Z" fill="url(#${uid}h)"/>`
+
+        // ---------- hair ----------
+        let hairBack = '', hairFront = '';
+        if (isF) {
+            if (style === 0) {          // long, side-swept
+                hairBack = `<path d="M22 54 C14 22 33 8 46 9 C60 9 77 22 68 56 C72 78 76 100 62 110 L28 110 C13 100 18 78 22 54Z" fill="url(#${u}h)"/>`;
+                hairFront = `<path d="M25 54 C22 28 34 18 47 18 C60 18 68 29 65 54 C63 42 56 33 46 31 C37 33 29 41 25 54Z" fill="url(#${u}h)"/><path d="M47 18 C37 22 30 34 26 52 C34 39 43 34 52 32 C46 27 46 22 47 18Z" fill="url(#${u}h)"/><path d="M33 26 C41 20 52 20 60 27" stroke="${h2}" stroke-width="1.1" fill="none" opacity=".65" stroke-linecap="round"/><path d="M27 70 C26 84 28 96 33 104 M63 70 C64 84 62 96 57 104" stroke="${h2}" stroke-width=".9" fill="none" opacity=".45"/>`;
+            } else if (style === 1) {   // sleek lob
+                hairBack = `<path d="M22 54 C14 22 33 8 46 9 C60 9 77 22 68 56 C71 70 72 82 68 92 C60 96 30 96 22 92 C18 82 19 70 22 54Z" fill="url(#${u}h)"/>`;
+                hairFront = `<path d="M25 54 C22 28 34 17 46 17 C60 17 69 29 65 54 C62 41 55 32 45 31 C37 33 29 41 25 54Z" fill="url(#${u}h)"/><path d="M30 28 C40 20 54 21 62 29" stroke="${h2}" stroke-width="1.2" fill="none" opacity=".7" stroke-linecap="round"/>`;
+            } else {                    // high bun
+                hairBack = `<circle cx="45" cy="12" r="9" fill="url(#${u}h)"/><circle cx="42" cy="9.5" r="3" fill="${h2}" opacity=".35"/>`;
+                hairFront = `<path d="M25 52 C23 25 34 17 45 17 C56 17 67 25 65 52 C62 39 54 30 45 30 C36 30 28 39 25 52Z" fill="url(#${u}h)"/><path d="M31 25 C39 19 51 19 59 25" stroke="${h2}" stroke-width="1.1" fill="none" opacity=".7" stroke-linecap="round"/>`;
+            }
+        } else {
+            if (style === 0) {          // textured quiff
+                hairFront = `<path d="M25 49 C21 24 34 12 47 13 C62 13 70 25 65 49 C63 39 60 32 54 28 C47 31 40 28 33 31 C29 35 27 41 25 49Z" fill="url(#${u}h)"/><path d="M32 22 C41 15 55 16 62 25" stroke="${h2}" stroke-width="1.3" fill="none" opacity=".75" stroke-linecap="round"/><path d="M38 20 C44 17 50 17 56 20" stroke="${h2}" stroke-width=".9" fill="none" opacity=".5" stroke-linecap="round"/>`;
+            } else if (style === 1) {   // clean side-part
+                hairFront = `<path d="M25 49 C22 26 35 16 47 17 C61 18 69 27 65 49 C63 38 56 30 44 29 C34 29 28 38 25 49Z" fill="url(#${u}h)"/><path d="M40 18 C38 24 36 27 33 30" stroke="rgba(255,255,255,.18)" stroke-width="1" fill="none"/><path d="M33 24 C42 18 56 19 63 27" stroke="${h2}" stroke-width="1.1" fill="none" opacity=".6" stroke-linecap="round"/>`;
+            } else {                    // short crop + fade
+                hairFront = `<path d="M25.5 49 C23 28 34 18 46 18 C60 18 68 28 64.5 49 C63 40 58 33 46 32 C33 33 27 40 25.5 49Z" fill="url(#${u}h)"/><path d="M31 25 C40 19 54 20 61 27" stroke="${h2}" stroke-width="1" fill="none" opacity=".55" stroke-linecap="round"/>`;
+            }
+        }
+
+        // ---------- face details ----------
+        const brow = isF
+            ? `<path d="M29.5 43.6 Q35.5 39.6 42 43.2 M48 43.2 Q54.5 39.6 60.5 43.6" stroke="${h1}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`
+            : `<path d="M29 43.8 Q35.5 40.6 42.5 43 M47.5 43 Q54.5 40.6 61 43.8" stroke="${h1}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+        const eye = (cx, side) => `<g class="eye">${isF ? `<path d="M${cx - 5} 49.6 Q${cx} 44.8 ${cx + 5} 49.6 Q${cx} 47.6 ${cx - 5} 49.6Z" fill="${shadow}" opacity=".28"/>` : ''}<path d="M${cx - 4.6} 51.2 Q${cx} 47.2 ${cx + 4.6} 51.2 Q${cx} 54.2 ${cx - 4.6} 51.2Z" fill="#fff"/><circle cx="${cx}" cy="51" r="2.35" fill="${iris}"/><circle cx="${cx}" cy="51" r="1.1" fill="#080808"/><circle cx="${cx + 0.9}" cy="50.1" r=".75" fill="#fff"/><circle cx="${cx - 0.8}" cy="51.9" r=".35" fill="#fff" opacity=".7"/><path d="M${cx - 4.9} 51.2 Q${cx} 46.6 ${cx + 4.9} 51.2" stroke="#1a0f0c" stroke-width="${isF ? 1.5 : 1.2}" fill="none" stroke-linecap="round"/>${isF ? `<path d="M${side > 0 ? cx + 4.6 : cx - 4.6} 51 L${side > 0 ? cx + 6.6 : cx - 6.6} 49.6" stroke="#1a0f0c" stroke-width="1.1" stroke-linecap="round"/>` : ''}</g>`;
+        const specs = glasses
+            ? `<g fill="rgba(180,220,255,.10)" stroke="#111827" stroke-width="1.2"><rect x="28" y="45.5" width="16" height="11.5" rx="5"/><rect x="46" y="45.5" width="16" height="11.5" rx="5"/></g><path d="M44 50 Q45 48.6 46 50" stroke="#111827" stroke-width="1.1" fill="none"/><path d="M30 47.5 L36 46.8" stroke="rgba(255,255,255,.5)" stroke-width=".8" stroke-linecap="round"/>`
             : '';
-        const hairFront = gender === 'female'
-            ? `<path d="M24 52 C22 28 36 20 46 21 C60 21 69 32 66 52 C62 40 52 33 46 33 C38 33 28 40 24 52Z" fill="url(#${uid}h)"/><path d="M30 30 C38 24 50 24 58 30" stroke="${h2}" stroke-width="1" fill="none" opacity=".6"/>`
-            : `<path d="M24 50 C20 24 36 14 47 15 C62 15 72 28 66 50 C63 40 58 33 50 31 C42 35 31 36 24 50Z" fill="url(#${uid}h)"/><path d="M30 24 C40 17 54 18 62 26" stroke="${h2}" stroke-width="1.2" fill="none" opacity=".7"/>`;
-        const specs = glasses ? `<g fill="rgba(255,255,255,.08)" stroke="#1f2937" stroke-width="1.3"><rect x="27.5" y="47" width="16" height="11" rx="4.5"/><rect x="46.5" y="47" width="16" height="11" rx="4.5"/></g><path d="M43.5 51 Q45 49.5 46.5 51" stroke="#1f2937" stroke-width="1.2" fill="none"/>` : '';
-        const brow = gender === 'female' ? `<path d="M29.5 44.5 Q36 41 42 44.5 M48 44.5 Q54 41 60.5 44.5" stroke="${h1}" stroke-width="1.6" fill="none" stroke-linecap="round"/>` : `<path d="M29 44.5 Q36 41.5 42.5 44 M47.5 44 Q54 41.5 61 44.5" stroke="${h1}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
-        const lash = gender === 'female' ? 1.7 : 1.2;
-        const eye = (cx) => `<g class="eye"><ellipse cx="${cx}" cy="52.5" rx="4.4" ry="2.7" fill="#fff"/><circle cx="${cx}" cy="52.5" r="2.3" fill="${iris}"/><circle cx="${cx}" cy="52.5" r="1.1" fill="#0b0b0b"/><circle cx="${cx + 0.9}" cy="51.6" r=".7" fill="#fff"/><path d="M${cx - 4.6} 52.5 Q${cx} 48.8 ${cx + 4.6} 52.5" stroke="#2a1a14" stroke-width="${lash}" fill="none" stroke-linecap="round"/></g>`;
-        const beard = (gender === 'male' && Math.random() < 0.4) ? `<path d="M26 58 C27 74 36 80 45 80 C54 80 63 74 64 58 C60 70 54 72 45 72 C36 72 30 70 26 58Z" fill="${h1}" opacity=".55"/>` : '';
-        const svg = `<svg viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        const stubble = (!isF && Math.random() < 0.55)
+            ? `<path d="M27 58 C28 72 36 79 45 79 C54 79 62 72 63 58 C60 70 54 73.5 45 73.5 C36 73.5 30 70 27 58Z" fill="${h1}" opacity="${Math.random() < 0.5 ? '.28' : '.5'}"/><path d="M37 68 Q45 65.5 53 68" stroke="${h1}" stroke-width="1.6" fill="none" opacity=".4" stroke-linecap="round"/>`
+            : '';
+        const FACE = 'M26 50 C26 31 34 25 45 25 C56 25 64 31 64 50 C64 59 62 66 58 71 C54 76 50 79 45 79 C40 79 36 76 32 71 C28 66 26 59 26 50Z';
+
+        // ---------- headset (AI support agent) ----------
+        const headset = `<path d="M22.5 54 C18 14 72 14 67.5 54" stroke="#0b0f1a" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M22.5 54 C18 14 72 14 67.5 54" stroke="${ac}" stroke-width=".8" fill="none" stroke-linecap="round" opacity=".9"/><rect x="18.6" y="49.5" width="6.4" height="12" rx="3.2" fill="#0b0f1a"/><rect x="20" y="51.5" width="3.4" height="8" rx="1.7" fill="${ac}"/><rect x="65" y="49.5" width="6.4" height="12" rx="3.2" fill="#0b0f1a"/><rect x="66.6" y="51.5" width="3.4" height="8" rx="1.7" fill="${ac}"/><path d="M69 61 C70 72 62 79 52.5 77" stroke="#0b0f1a" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="52" cy="77" r="2" fill="#0b0f1a"/><circle cx="52" cy="77" r=".9" fill="${ac}"/>`;
+
+        const lashGlow = '';
+        return `<svg viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 <defs>
-<linearGradient id="${uid}bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${b1}"/><stop offset="1" stop-color="${b2}"/></linearGradient>
-<linearGradient id="${uid}s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${sk1}"/><stop offset="1" stop-color="${sk2}"/></linearGradient>
-<linearGradient id="${uid}h" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${h2}"/><stop offset=".45" stop-color="${h1}"/><stop offset="1" stop-color="${h1}"/></linearGradient>
-<linearGradient id="${uid}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sk2}"/><stop offset="1" stop-color="${sk1}"/></linearGradient>
-<radialGradient id="${uid}l" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="rgba(255,255,255,.25)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient>
+<linearGradient id="${u}bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${b1}"/><stop offset="1" stop-color="${b2}"/></linearGradient>
+<radialGradient id="${u}sp" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="rgba(255,255,255,.34)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient>
+<linearGradient id="${u}s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${sk1}"/><stop offset="1" stop-color="${sk2}"/></linearGradient>
+<linearGradient id="${u}sh" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(0,0,0,.14)"/><stop offset=".22" stop-color="rgba(0,0,0,0)"/><stop offset=".78" stop-color="rgba(255,255,255,0)"/><stop offset="1" stop-color="rgba(0,0,0,.12)"/></linearGradient>
+<linearGradient id="${u}h" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${h2}"/><stop offset=".4" stop-color="${h1}"/><stop offset="1" stop-color="${h1}"/></linearGradient>
+<linearGradient id="${u}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sk2}"/><stop offset="1" stop-color="${sk1}"/></linearGradient>
+<linearGradient id="${u}cl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="rgba(255,255,255,.14)"/><stop offset="1" stop-color="rgba(0,0,0,.28)"/></linearGradient>
+<radialGradient id="${u}gl" cx=".38" cy=".3" r=".75"><stop offset="0" stop-color="rgba(255,255,255,.28)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient>
 </defs>
-<rect width="90" height="120" fill="url(#${uid}bg)"/>
-<circle cx="70" cy="20" r="26" fill="rgba(255,255,255,.06)"/>
+<rect width="90" height="120" fill="url(#${u}bg)"/>
+<circle cx="72" cy="20" r="24" fill="rgba(255,255,255,.07)"/><circle cx="12" cy="98" r="18" fill="rgba(255,255,255,.05)"/><circle cx="80" cy="76" r="7" fill="rgba(255,255,255,.06)"/>
+<path d="M0 34 L58 0 L90 0 L90 10 L18 62Z" fill="rgba(255,255,255,.05)"/>
+<rect width="90" height="120" fill="url(#${u}sp)"/>
 ${hairBack}
+<path d="M37.5 70 L37.5 91 Q45 97 52.5 91 L52.5 70Z" fill="url(#${u}s)"/>
 ${body}
-<path d="M36 70 L36 88 Q45 95 54 88 L54 70Z" fill="url(#${uid}s)"/>
-<path d="M36 78 Q45 86 54 78 L54 84 Q45 92 36 84Z" fill="rgba(0,0,0,.14)"/>
+<path d="M37.5 78 Q45 86 52.5 78 L52.5 85 Q45 92 37.5 85Z" fill="rgba(0,0,0,.16)"/>
 <g class="head-g">
-<ellipse cx="25" cy="54" rx="3.2" ry="5" fill="${sk2}"/><ellipse cx="65" cy="54" rx="3.2" ry="5" fill="${sk2}"/>
-<path d="M25 50 C25 30 35 26 45 26 C55 26 65 30 65 50 C65 66 56 78 45 78 C34 78 25 66 25 50Z" fill="url(#${uid}s)"/>
-<path d="M25 50 C25 30 35 26 45 26 C55 26 65 30 65 50 C65 66 56 78 45 78 C34 78 25 66 25 50Z" fill="url(#${uid}l)"/>
-${beard}
+<ellipse cx="25.3" cy="53.5" rx="3.1" ry="5" fill="${sk2}"/><ellipse cx="64.7" cy="53.5" rx="3.1" ry="5" fill="${sk2}"/>
+<path d="${FACE}" fill="url(#${u}s)"/>
+<path d="${FACE}" fill="url(#${u}sh)"/>
+<path d="${FACE}" fill="url(#${u}gl)"/>
+<path d="M28 58 C29 68 36 76 45 77 C54 76 61 68 62 58 C58 70 52 74.4 45 75 C38 74.4 32 70 28 58Z" fill="rgba(0,0,0,.07)"/>
+${stubble}
 ${hairFront}
 ${brow}
-${eye(36)}${eye(54)}
+${eye(36, -1)}${eye(54, 1)}
 ${specs}
-<path d="M45 54 C43.5 60 42.5 62.5 44 64 Q45 64.8 46 64 C47.5 62.5 46.5 60 45 54" stroke="rgba(0,0,0,.18)" stroke-width="1" fill="none"/>
-<path d="M41.5 65 Q45 67 48.5 65" stroke="rgba(0,0,0,.2)" stroke-width="1" fill="none" stroke-linecap="round"/>
-<path d="M38.5 71 Q42 68.8 45 70 Q48 68.8 51.5 71 Q48 74.5 45 74.8 Q42 74.5 38.5 71Z" fill="${lip}"/>
-<ellipse class="mouth" cx="45" cy="71.4" rx="3.6" ry="0.9" fill="#4a0d1c"/>
-<path d="M41 72.4 Q45 74 49 72.4" stroke="rgba(255,255,255,.28)" stroke-width=".8" fill="none"/>
-<ellipse cx="31" cy="64" rx="4" ry="2.6" fill="#ff8a8a" opacity=".16"/><ellipse cx="59" cy="64" rx="4" ry="2.6" fill="#ff8a8a" opacity=".16"/>
-</g></svg>`;
-        return svg;
+<path d="M45 50 L45 61" stroke="rgba(255,255,255,.18)" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M42.4 63.6 Q45 66.2 47.6 63.6" stroke="rgba(90,40,20,.35)" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+<path d="M39 70 Q42.2 67.8 45 69 Q47.8 67.8 51 70 Q45 71.1 39 70Z" fill="${lip}"/>
+<path d="M39 70 Q45 71.3 51 70 Q48.2 75.2 45 75.4 Q41.8 75.2 39 70Z" fill="${lip}" opacity=".82"/>
+<ellipse class="mouth" cx="45" cy="70.5" rx="3.2" ry=".7" fill="#3f0a18"/>
+<ellipse cx="45" cy="73.2" rx="2.4" ry=".8" fill="#fff" opacity=".28"/>
+<ellipse cx="31" cy="63" rx="4.2" ry="2.6" fill="#ff7a8a" opacity="${isF ? .2 : .1}"/><ellipse cx="59" cy="63" rx="4.2" ry="2.6" fill="#ff7a8a" opacity="${isF ? .2 : .1}"/>
+<path d="M63.6 40 C65 52 63.5 62 58.5 70.5" stroke="rgba(255,255,255,.22)" stroke-width="1" fill="none" stroke-linecap="round"/>
+${headset}
+</g>
+</svg>`;
     }
     function vekycSetAvatarSpeaking(isSpeaking) {
         const av = document.getElementById('video-ekyc-avatar');
