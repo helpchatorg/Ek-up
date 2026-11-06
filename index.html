@@ -2136,6 +2136,24 @@
     </div>
 </div>
 
+<!-- ===== UNBLOCK DASHBOARD MODAL ===== -->
+<div id="unblock-modal" class="modal">
+    <div class="modal-content" style="max-width:400px; text-align:left;">
+        <div style="text-align:center; margin-bottom:10px;">
+            <div style="font-size:2.2rem;">🔓</div>
+            <h3 style="margin:6px 0 0;">Unblock Student Dashboard</h3>
+        </div>
+        <p style="font-size:0.78rem; color:var(--grey); margin-bottom:4px;">Student:</p>
+        <p style="font-weight:800; font-size:0.9rem; margin-bottom:10px;" id="unblock-modal-student-name"></p>
+        <p style="font-size:0.78rem; color:var(--grey); margin-bottom:10px;">Unblocking restores the student's dashboard access immediately.</p>
+        <div class="lf-btn-row">
+            <button onclick="closeUnblockModal()" style="background:var(--grey);">Cancel</button>
+            <button onclick="confirmUnblockDashboard()" style="background:#16a34a;">🔓 Unblock Dashboard</button>
+        </div>
+        <div id="unblock-history-box" style="margin-top:14px; border-top:1px solid #e2e8f0; padding-top:10px;"></div>
+    </div>
+</div>
+
 <!-- ===== BLOCK NEW TICKET CREATION MODAL ===== -->
 <div id="ticket-block-modal" class="modal">
     <div class="modal-content" style="max-width:400px; text-align:left;">
@@ -11124,9 +11142,10 @@
         if (!wasOpen) dd.classList.add('open');
     }
     function blockHistoryFmt(iso) { try { return formatAppDate(iso) + ', ' + formatAppTime(iso); } catch (e) { return iso || ''; } }
-    function renderBlockHistory(st) {
-        const box = document.getElementById('block-history-box'); if (!box) return;
-        const h = (st && Array.isArray(st.blockHistory)) ? st.blockHistory : [];
+    function renderBlockHistory(st, boxId) {
+        const box = document.getElementById(boxId || 'block-history-box'); if (!box) return;
+        const h = (st && Array.isArray(st.blockHistory)) ? st.blockHistory.slice() : [];
+        if (st && st.isBlocked && st.blockedAt && !h.some(x => !x.to)) h.push({ from: st.blockedAt, to: null, reason: st.blockReason || '' }); // block made before history existed
         const blocks = h.length, unblocks = h.filter(x => x.to).length;
         let html = '<div style="font-size:0.72rem; font-weight:800; color:var(--grey); margin-bottom:6px;">📜 BLOCK HISTORY</div>';
         html += '<div style="font-size:0.74rem; font-weight:800; margin-bottom:6px;">🔒 Blocked: ' + blocks + ' time(s) &nbsp;|&nbsp; 🔓 Unblocked: ' + unblocks + ' time(s)</div>';
@@ -11194,9 +11213,23 @@
         document.getElementById('lock-unblock-ticket-info').innerHTML = `Your request has been submitted successfully.<br><br><strong>Your Ticket ID: ${ticketId}</strong><br><br>Please save this Ticket ID for future reference. You can check its status anytime from the Help &amp; Support Center under "Check Ticket Status".`;
     }
 
+    let unblockModalStudentId = null;
     function unblockStudentDashboard(id) {
         document.querySelectorAll('.settings-dropdown.open').forEach(d => d.classList.remove('open'));
-        if (!confirm('Unblock this student\'s dashboard and restore access?')) return;
+        const s = students.find(x => x.id === id);
+        if (!s) return;
+        unblockModalStudentId = id;
+        document.getElementById('unblock-modal-student-name').innerText = `${s.name} (${s.regNo || 'Demo'})`;
+        renderBlockHistory(s, 'unblock-history-box');
+        document.getElementById('unblock-modal').style.display = 'flex';
+    }
+    function closeUnblockModal() {
+        document.getElementById('unblock-modal').style.display = 'none';
+        unblockModalStudentId = null;
+    }
+    function confirmUnblockDashboard() {
+        const id = unblockModalStudentId;
+        closeUnblockModal();
         const s = students.find(x => x.id === id);
         if (!s) return;
         if (!Array.isArray(s.blockHistory)) s.blockHistory = [];
