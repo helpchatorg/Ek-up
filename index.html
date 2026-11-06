@@ -887,6 +887,16 @@
         .ticket-card.status-waiting { border-left-color: #ec4899; }
         .ticket-card.status-closed { border-left-color: #16a34a; }
 
+        /* Browser already shows its own show/hide eye on password fields (e.g. Edge) -> hide ours */
+        html.native-pw-reveal .toggle-pass { display: none !important; }
+
+        /* ===== CHAT AVATARS ===== */
+        .chat-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: 0 0 30px; border: 1.5px solid #fff; box-shadow: 0 1px 4px rgba(15,23,42,0.18); background: #0b2a4a; }
+        .chat-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+        .chat-row.right { flex-direction: row-reverse; }
+        .chat-row .chat-msg { margin: 0; max-width: calc(100% - 42px); }
+        .chat-row.card { align-items: flex-start; }
+
         /* ===== CHAT MESSAGES ===== */
         .chat-messages { margin-bottom: 15px; }
         .chat-msg {
@@ -2085,6 +2095,17 @@
         .gb-notif-card{border:1.5px solid #c7d2fe;background:#eef2ff;}
         .gb-notif-open-btn{margin-top:8px;background:var(--primary,#2563eb);color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:0.72rem;font-weight:800;cursor:pointer;}
     </style>
+<script>
+(function () {
+    // Does this browser already draw its own show/hide (eye) button inside password fields?
+    var native = false;
+    try {
+        native = /\bEdg(e|A|iOS)?\//.test(navigator.userAgent) ||
+                 !!(window.CSS && CSS.supports && CSS.supports('selector(input::-ms-reveal)'));
+    } catch (e) {}
+    if (native) document.documentElement.classList.add('native-pw-reveal');
+})();
+</script>
 </head>
 <body>
 
@@ -4496,7 +4517,7 @@
 </div>
 
 <div class="bottom-nav" id="student-bottom-nav" style="display:none;">
-    <div class="nav-item active" id="stu-profile-nav-btn" onclick="switchStudentTab('student-dash-sec', this)">🏠 My Profile</div>
+    <div class="nav-item active" id="stu-profile-nav-btn" onclick="switchStudentTab('student-dash-sec', this)">👤 My Profile</div>
     <div class="nav-item" onclick="switchStudentTab('stu-queries-sec', this); renderStudentTickets();" id="stu-queries-nav-btn">💬 Queries</div>
     <div class="nav-item" id="stu-lf-nav-btn" onclick="switchStudentTab('lostfound-sec', this); openLostFoundStudent();">🔍 Lost &amp; Found</div>
 </div>
@@ -15505,9 +15526,9 @@ function subAskAutoRenew(req, cb){
             convHtml = '<div style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;"><div style="font-size:0.68rem; font-weight:800; color:var(--grey); margin-bottom:6px; text-transform:uppercase;">Conversation</div>';
             t.messages.forEach(m => {
                 const isSuper = m.by === 'superadmin';
-                convHtml += '<div style="background:' + (isSuper?'#eff6ff':'#f0fdf4') + '; border:1px solid ' + (isSuper?'#bfdbfe':'#bbf7d0') + '; border-radius:8px; padding:10px; margin-bottom:8px;">';
+                convHtml += '<div class="chat-row card">' + chatAvatarImg(STAFF_AVATAR) + '<div style="flex:1;min-width:0;"><div style="background:' + (isSuper?'#eff6ff':'#f0fdf4') + '; border:1px solid ' + (isSuper?'#bfdbfe':'#bbf7d0') + '; border-radius:8px; padding:10px; margin-bottom:8px;">';
                 convHtml += '<div style="font-size:0.72rem; font-weight:800; color:' + (isSuper?'#1d4ed8':'#15803d') + '; margin-bottom:4px;">' + (isSuper?'🛠️ Super Admin':'🏢 You') + ' · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div>';
-                convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, isSuper?'#1d4ed8':'#15803d') + '</div>';
+                convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, isSuper?'#1d4ed8':'#15803d') + '</div></div></div>';
             });
             convHtml += '</div>';
         }
@@ -15802,17 +15823,17 @@ function subAskAutoRenew(req, cb){
                 convHtml = '<div style="margin-top:10px; border-top:1px solid var(--border); padding-top:10px;"><div style="font-size:0.68rem; font-weight:800; color:var(--grey); margin-bottom:6px; text-transform:uppercase;">Conversation</div>';
                 t.messages.forEach(m => {
                     if (m.by === 'admin') {
-                        convHtml += '<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; margin-bottom:8px;">';
+                        convHtml += '<div class="chat-row card">' + chatAvatarImg(STAFF_AVATAR) + '<div style="flex:1;min-width:0;"><div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; margin-bottom:8px;">';
                         convHtml += '<div style="font-size:0.72rem; font-weight:800; color:#1d4ed8; margin-bottom:4px;">👤 Admin · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div>';
-                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#1d4ed8') + '</div>';
+                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#1d4ed8') + '</div></div></div>';
                     } else if (m.by === 'superadmin') {
-                        convHtml += '<div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:10px; margin-bottom:8px;">';
+                        convHtml += '<div class="chat-row card">' + chatAvatarImg(STAFF_AVATAR) + '<div style="flex:1;min-width:0;"><div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:10px; margin-bottom:8px;">';
                         convHtml += '<div style="font-size:0.72rem; font-weight:800; color:#7c3aed; margin-bottom:4px;">🛠️ Super Admin · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div>';
-                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#7c3aed') + '</div>';
+                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#7c3aed') + '</div></div></div>';
                     } else {
-                        convHtml += '<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px; margin-bottom:8px;">';
+                        convHtml += '<div class="chat-row card">' + chatAvatarImg(stuAvatarFor(typeof loggedInStudent !== 'undefined' && loggedInStudent ? loggedInStudent.regNo : '')) + '<div style="flex:1;min-width:0;"><div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px; margin-bottom:8px;">';
                         convHtml += '<div style="font-size:0.72rem; font-weight:800; color:#15803d; margin-bottom:4px;">🎓 You · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div>';
-                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#15803d') + '</div>';
+                        convHtml += '<div style="font-size:0.82rem; color:var(--dark);">' + m.text + '</div>' + renderAttachLinks(m.files || m.file, '#15803d') + '</div></div></div>';
                     }
                 });
                 convHtml += '</div>';
@@ -16295,6 +16316,17 @@ function subAskAutoRenew(req, cb){
         return `<span class="ticket-badge ${map[status]||'badge-open'}">${status}</span>`;
     }
 
+    // ===== Chat avatars: students show their own profile photo; Admin / Super Admin show the default profile icon =====
+    const STAFF_AVATAR = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCABgAGADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD5+8tP7oo8tP7op1FezY8m43y0/uijy0/uinUUWC43y0/uijy0/uinUUWC43y0/uijy0/uinUUWC43y0/uijy0/uinUUWC43y0/uijy0/uinUUWC4UUUUCCiiigAoroPB3hG58W37Qo/kW0IDTzYztB6ADuTXpf/CpfDXkeXsvd+P9b553Z9cYx+lddDBVa0eaOxzVsXTpPllueKUV0PjLwfceEr5I2k8+1mBMM2ME46qR2Irnq55wlCTjJao3hNTjzR2CiiioKCiiigAooooAKKKKAPXPgzLCdGv4lI85bkM477Sox/I16FXz34U1DWtL1JbrRYJp5MbXjSNnWRf7rAf5Feof8Jr4i+zbv+EI1Hzsf3/kz+Wa9/A4uKpKMk9PJni4vDSdRyj18yn8ZJYV0KyiYjzmutyDvgKdx/UV5DW34s1HW9V1I3WtW89u+NscbxsiRr6Ln/JrErysZW9rVckrHpYWl7OmothRRRXKdAUUUUAFFFFABXp3w38BafqGmprOqwi581iIIWPyBQcbiO5JB46V5jXq3w98d6NY+H4dM1G6WzmtiwVpAdsikkgggdecYruwCpur+928zkxrqez/AHZ6LBDFbRiKCNIo14CRqFA/AU+uf/4T/wAL/wDQbtP/AB7/AAo/4T/wv/0G7T/x7/Cvofb0v5l954nsan8r+43ZoY7iMxTRpLG3BR1DA/ga8z+I/gLT7HTJNZ0qEWxhYedCn3GUnG4DsQSOnFdf/wAJ/wCF/wDoN2n/AI9/hXM/EDx5ot54fn03Trpbya6wpMYO2NQQSSSOvHSuXFzoTpO7TfQ6MNGtGorJnk9FFFfNHvBRRRQAUUUUAFFFFAC5NGTSUUALk0lFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAf/Z';
+    function chatAvatarImg(src) { return '<img class="chat-avatar" src="' + (src || STAFF_AVATAR) + '" alt="">'; }
+    function stuAvatarFor(regNo) {
+        try {
+            if (typeof loggedInStudent !== 'undefined' && loggedInStudent && loggedInStudent.regNo === regNo && loggedInStudent.photo) return loggedInStudent.photo;
+            const st = (typeof students !== 'undefined' ? students : []).find(x => x.regNo === regNo);
+            if (st && st.photo) return st.photo;
+        } catch (e) {}
+        return STAFF_AVATAR;
+    }
     function openTicketDetailModal(ticketId, role) {
         refreshTicketInPlace(ticketId, 'tickets');
         const t = tickets.find(x => x.id===ticketId); if (!t) return;
@@ -16334,7 +16366,8 @@ function subAskAutoRenew(req, cb){
                 const bubbleClass = m.by==='admin' ? 'admin' : (m.by==='superadmin' ? 'superadmin' : 'student');
                 const linkColor = m.by==='admin' ? '#1d4ed8' : (m.by==='superadmin' ? '#7c3aed' : '#475569');
                 const label = m.by==='admin' ? '👤 Admin' : (m.by==='superadmin' ? '🛠️ Super Admin' : '🎓 Student');
-                html += `<div class="chat-msg ${bubbleClass}"><div>${m.text}</div>${renderAttachLinks(m.files || m.file, linkColor)}<div class="msg-meta">${label} · ${formatAppDate(m.time)} ${formatAppTime(m.time)}</div></div>`;
+                const isStuMsg = !(m.by==='admin' || m.by==='superadmin');
+                html += `<div class="chat-row ${isStuMsg ? '' : 'right'}">${chatAvatarImg(isStuMsg ? stuAvatarFor(t.regNo) : STAFF_AVATAR)}<div class="chat-msg ${bubbleClass}"><div>${m.text}</div>${renderAttachLinks(m.files || m.file, linkColor)}<div class="msg-meta">${label} · ${formatAppDate(m.time)} ${formatAppTime(m.time)}</div></div></div>`;
             });
             html += `</div>`;
         }
@@ -16722,9 +16755,9 @@ function subAskAutoRenew(req, cb){
             html += '<div style="font-size:0.7rem;font-weight:800;color:var(--grey);margin-bottom:8px;text-transform:uppercase;">Conversation</div><div class="chat-messages">';
             t.messages.forEach(m => {
                 const isSuper = m.by === 'superadmin';
-                html += '<div class="chat-msg ' + (isSuper ? 'admin' : 'student') + '"><div>' + m.text + '</div>'
+                html += '<div class="chat-row ' + (isSuper ? 'right' : '') + '">' + chatAvatarImg(STAFF_AVATAR) + '<div class="chat-msg ' + (isSuper ? 'admin' : 'student') + '"><div>' + m.text + '</div>'
                     + renderAttachLinks(m.files || m.file, isSuper?'#1d4ed8':'#475569')
-                    + '<div class="msg-meta">' + (isSuper ? '🛠️ Super Admin' : '🏢 You (Admin)') + ' · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div></div>';
+                    + '<div class="msg-meta">' + (isSuper ? '🛠️ Super Admin' : '🏢 You (Admin)') + ' · ' + formatAppDate(m.time) + ' ' + formatAppTime(m.time) + '</div></div></div>';
             });
             html += '</div>';
         }
