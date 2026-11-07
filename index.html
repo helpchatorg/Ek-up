@@ -12192,12 +12192,18 @@ ${headset}
         const now = Date.now(), ve = wallet.setup && wallet.setup.videoEkyc;
         let minT = now + 10 * 60000;
         if (ve && ve.status === 'failed' && ve.cooldownUntil && new Date(ve.cooldownUntil).getTime() > minT) minT = new Date(ve.cooldownUntil).getTime();
+        // Scheduling must not be a shortcut around the queue: the earliest slot = the time your turn would have come + 30% of the wait you were given
+        const q0 = wallet.videoEkycQueue, sc0 = wallet.videoEkycSchedule;
+        let waitFloor = 0, waitMin = 0;
+        if (q0 && q0.readyAt > now) { waitMin = q0.minutes || Math.round((q0.readyAt - q0.joinedAt) / 60000); waitFloor = q0.readyAt + Math.round(0.3 * waitMin * 60000); }
+        else if (sc0 && sc0.floorAt) waitFloor = sc0.floorAt;
+        if (waitFloor > minT) minT = waitFloor; else if (waitFloor && waitFloor <= minT) waitFloor = 0;
         const maxT = now + 7 * 86400000, loc = ms => { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
         const inp = document.getElementById('vekyc-sched-input');
-        inp.min = loc(minT); inp.max = loc(maxT);
+        inp.min = loc(minT); inp.max = loc(maxT); inp.dataset.floor = String(waitFloor || 0);
         inp.value = wallet.videoEkycSchedule ? loc(new Date(wallet.videoEkycSchedule.at).getTime()) : loc(Math.max(minT, now + 60 * 60000));
         document.getElementById('err-vekyc-sched').style.display = 'none';
-        document.getElementById('vekyc-sched-hint').textContent = 'Choose a time between ' + vekycFmtWhen(minT) + ' and ' + vekycFmtWhen(maxT) + '.';
+        document.getElementById('vekyc-sched-hint').textContent = (waitFloor ? (waitMin ? 'Your current waiting time is ~' + waitMin + ' min, so the earliest slot is that wait plus 30% extra. ' : 'The earliest slot is based on your waiting time plus 30% extra. ') : '') + 'Choose a time between ' + vekycFmtWhen(minT) + ' and ' + vekycFmtWhen(maxT) + '.';
         document.getElementById('video-ekyc-sched-row').style.display = 'block';
     }
     function vekycScheduleBack() { if (wallet.videoEkycSchedule) vekycShowScheduleInfo(); else vekycShowWaitScreen(); }
@@ -12205,7 +12211,9 @@ ${headset}
         const inp = document.getElementById('vekyc-sched-input'), err = document.getElementById('err-vekyc-sched');
         const t = inp.value ? new Date(inp.value).getTime() : NaN, min = inp.min ? new Date(inp.min).getTime() : 0, max = inp.max ? new Date(inp.max).getTime() : Infinity;
         if (isNaN(t) || t < min - 1000 || t > max + 1000) { err.textContent = 'Please choose a valid time within the allowed range shown below.'; err.style.display = 'block'; return; }
+        const floorAt = Number(inp.dataset.floor) || 0;
         wallet.videoEkycSchedule = { at: new Date(t).toISOString(), mode: _vekycMode, createdAt: new Date().toISOString() };
+        if (floorAt) wallet.videoEkycSchedule.floorAt = floorAt;   // remembered so re-scheduling cannot undercut the wait either
         delete wallet.videoEkycQueue; _vekycSchedNotified = '';
         persistWalletOnly();
         vekycShowScheduleInfo();
