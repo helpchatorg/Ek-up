@@ -2271,7 +2271,7 @@
         </div>
         <div id="demo-seat-area" style="display:none; background:#f0fdfa; border:1px solid #99f6e4; border-radius:10px; padding:14px; margin-bottom:15px;">
             <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:6px;">🔓 Seat was freed — choose a seat</div>
-            <select id="demo-seat-select" style="width:100%; margin:0;"></select>
+            <div id="demo-seat-picker"></div>
             <div class="error-msg" id="err-demo-seat">Please choose a seat</div>
         </div>
         <div style="background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:15px;">
@@ -7766,12 +7766,6 @@
         if (!sh) { alert('This shift no longer exists in your configuration. Please reject this request or restore the shift.'); return; }
         const busy = prAdminBusySeats(sh, r.id), free = !busy.has(r.seat);
         const groups = (config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ suffix: '', capacity: config.totalSeats }];
-        let cur = 0, opts = '';
-        groups.forEach(g => {
-            const from = cur + 1, to = cur + g.capacity; cur = to; let o = '';
-            for (let n = from; n <= to; n++) o += '<option value="' + n + '"' + (busy.has(n) ? ' disabled' : '') + (n === r.seat && free ? ' selected' : '') + '>' + prEsc(seatLabel(n)) + (busy.has(n) ? ' (booked)' : '') + '</option>';
-            opts += '<optgroup label="' + (g.suffix ? 'Group ' + prEsc(g.suffix) : 'Seats') + '">' + o + '</optgroup>';
-        });
         const dupTxn = r.mode === 'Online' && ((students || []).some(st => (st.feeHistory || []).some(f => f.txnId && String(f.txnId).toLowerCase() === String(r.txnId).toLowerCase())) || (pendingRegs || []).some(x => x.id !== r.id && x.status === 'pending' && x.mode === 'Online' && String(x.txnId).toLowerCase() === String(r.txnId).toLowerCase()));
         const row = (k, v) => '<tr><td style="color:var(--grey);padding:4px 0;width:40%;">' + k + '</td><td style="padding:4px 0;font-weight:700;">' + v + '</td></tr>';
         const verify = r.mode === 'Cash'
@@ -7786,7 +7780,7 @@
             '<table style="width:100%;font-size:0.78rem;border-collapse:collapse;">' + row('Guardian', prEsc(r.fname)) + row('Mobile', prEsc(r.mobile)) + row('Email', prEsc(r.email)) + row('Date of birth', prEsc(r.dob)) + row('Shift', prEsc(r.shiftName) + ' (₹' + r.amount + ')') + row('Requested seat', prEsc(r.seatLabel)) + row('Applied on', formatAppDate(r.submittedAt)) + '</table>' +
             '<div style="margin:12px 0;">' + verify + '</div>' +
             (free ? '' : '<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:9px 11px;font-size:0.74rem;font-weight:700;margin-bottom:10px;">The requested seat ' + prEsc(r.seatLabel) + ' is no longer available. Please assign another seat below.</div>') +
-            '<label style="font-size:0.74rem;font-weight:800;">Assign seat</label><select id="pr-review-seat" style="width:100%;margin:4px 0 12px;">' + (free ? '' : '<option value="">-- Choose a seat --</option>') + opts + '</select>' +
+            '<label style="font-size:0.74rem;font-weight:800;display:block;margin-bottom:6px;">Assign seat</label>' + seatPickerHtml('pr-review-seat', busy, free ? r.seat : 0) +
             '<label style="display:flex;gap:9px;align-items:flex-start;font-size:0.76rem;font-weight:700;line-height:1.45;text-transform:none;letter-spacing:0;color:var(--dark);background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px 12px;cursor:pointer;"><input type="checkbox" id="pr-review-chk" style="margin-top:2px;width:auto;" onchange="document.getElementById(\'pr-review-ok\').disabled=!this.checked;document.getElementById(\'pr-review-ok\').style.opacity=this.checked?1:.45;"><span>' + (r.mode === 'Cash' ? 'I have received ₹' + r.amount + ' in cash at the counter.' : 'I have verified Transaction ID ' + prEsc(r.txnId) + ' and the amount in my payment records.') + '</span></label>' +
             '<div style="display:flex;gap:8px;margin-top:14px;"><button id="pr-review-ok" disabled style="background:#16a34a;flex:2;margin:0;opacity:.45;" onclick="approvePendingReg(\'' + r.id + '\')">✅ Confirm Registration</button><button style="background:#dc2626;flex:1;margin:0;" onclick="document.getElementById(\'pr-review-overlay\').remove();rejectPendingReg(\'' + r.id + '\')">✕ Reject</button></div></div>';
         document.body.appendChild(o);
@@ -10627,6 +10621,35 @@
         updateWaitlistNotifDot();
     }
 
+    // ===== Seat picker (same look as the registration seat grid) — replaces every seat dropdown =====
+    // Renders group cards with a seat grid; the chosen seat number goes into a hidden input (id = inputId),
+    // so the code that reads `.value` keeps working.
+    function seatPickerHtml(inputId, busy, selected) {
+        const groups = (config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ suffix: '', capacity: config.totalSeats }];
+        let cur = 0, html = '<div id="' + inputId + '-picker"><input type="hidden" id="' + inputId + '" value="' + (selected || '') + '">';
+        groups.forEach(g => {
+            const from = cur + 1, to = cur + g.capacity; cur = to;
+            let cells = '', booked = 0;
+            for (let n = from; n <= to; n++) {
+                const isB = busy.has(n); if (isB) booked++;
+                cells += isB
+                    ? '<div class="seat booked">X</div>'
+                    : '<div class="seat' + (n === selected ? ' selected' : '') + '" data-seat="' + n + '" onclick="spPick(\'' + inputId + '\',' + n + ',this)">' + prEsc(seatLabel(n)) + '</div>';
+            }
+            const avail = g.capacity - booked, label = g.suffix ? 'Group ' + prEsc(g.suffix) + ' (' + prEsc(seatLabel(from)) + '\u2013' + prEsc(seatLabel(to)) + ')' : 'Seats ' + from + '\u2013' + to;
+            html += '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.84rem;">' + label + '</strong><span style="font-size:0.78rem;font-weight:800;color:' + (avail > 0 ? '#16a34a' : '#dc2626') + ';">' + avail + ' / ' + g.capacity + ' available</span></div>'
+                + '<div class="seat-grid" style="grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;margin-top:0;">' + cells + '</div></div>';
+        });
+        return html + '</div>';
+    }
+    function spPick(inputId, n, el) {
+        const box = document.getElementById(inputId + '-picker'); if (!box) return;
+        box.querySelectorAll('.seat').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById(inputId).value = n;
+    }
+
     function openDemoConfirmModal(demoId) {
         const s = students.find(x => x.id === demoId); if (!s) return;
         currentDemoConfirmId = demoId;
@@ -10636,13 +10659,8 @@
             if (!sh) { alert('This shift no longer exists in your configuration.'); return; }
             const busy = prAdminBusySeats(sh, s.id);
             const groups = (config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ suffix: '', capacity: config.totalSeats }];
-            let cur = 0, opts = '<option value="">-- Choose a seat --</option>';
-            groups.forEach(g => {
-                const from = cur + 1, to = cur + g.capacity; cur = to; let o = '';
-                for (let n = from; n <= to; n++) o += '<option value="' + n + '"' + (busy.has(n) ? ' disabled' : '') + '>' + prEsc(seatLabel(n)) + (busy.has(n) ? ' (booked)' : '') + '</option>';
-                opts += '<optgroup label="' + (g.suffix ? 'Group ' + prEsc(g.suffix) : 'Seats') + '">' + o + '</optgroup>';
-            });
-            document.getElementById('demo-seat-select').innerHTML = opts;
+            const cur = groups.reduce((a, g) => a + g.capacity, 0);
+            document.getElementById('demo-seat-picker').innerHTML = seatPickerHtml('demo-seat-select', busy, 0);
             seatArea.style.display = 'block';
             let anyFree = false; for (let n = 1; n <= cur; n++) if (!busy.has(n)) { anyFree = true; break; }
             document.getElementById('demo-confirm-btn').style.display = anyFree ? '' : 'none';
