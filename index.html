@@ -9256,39 +9256,6 @@
         let h = parseInt(m[1], 10); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
         return h + ':' + m[2] + ' ' + ap;
     }
-    function initTime12Pickers(ids) {
-        ids.forEach(function (id) {
-            const inp = document.getElementById(id); if (!inp || inp.dataset.t12) return;
-            inp.dataset.t12 = '1'; inp.type = 'hidden';
-            let val = '';
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'display:flex;gap:6px;align-items:center;';
-            const mk = (opts) => { const s = document.createElement('select'); s.style.cssText = 'flex:1;min-width:0;margin:0;padding:10px 6px;'; s.innerHTML = opts; return s; };
-            let ho = '<option value="">Hr</option>', mo = '<option value="">Min</option>';
-            for (let h = 1; h <= 12; h++) ho += '<option value="' + h + '">' + h + '</option>';
-            for (let m = 0; m < 60; m++) mo += '<option value="' + String(m).padStart(2, '0') + '">' + String(m).padStart(2, '0') + '</option>';
-            const sh = mk(ho), sm = mk(mo), sp = mk('<option value="">--</option><option value="AM">AM</option><option value="PM">PM</option>');
-            wrap.appendChild(sh); wrap.appendChild(sm); wrap.appendChild(sp);
-            inp.parentNode.insertBefore(wrap, inp.nextSibling);
-            const sync = () => {
-                const m = /^(\d{1,2}):(\d{2})/.exec(val);
-                if (!m) { sh.value = ''; sm.value = ''; sp.value = ''; return; }
-                let h = parseInt(m[1], 10); sp.value = h >= 12 ? 'PM' : 'AM'; sh.value = String(h % 12 || 12); sm.value = m[2];
-            };
-            const read = () => {
-                if (!sh.value || !sm.value || !sp.value) { val = ''; return; }
-                let h = parseInt(sh.value, 10) % 12; if (sp.value === 'PM') h += 12;
-                val = String(h).padStart(2, '0') + ':' + sm.value;
-            };
-            [sh, sm, sp].forEach(el => el.addEventListener('change', read));
-            Object.defineProperty(inp, 'value', { configurable: true, get: function () { return val; }, set: function (v) { val = v ? String(v) : ''; sync(); } });
-        });
-    }
-
-    (function () {
-        const go = () => initTime12Pickers(['newShiftStart', 'newShiftEnd', 'sh-open-time', 'sh-close-time', 'lf-proc-edit-start', 'lf-proc-edit-end']);
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
-    })();
 
     function renderShiftList() {
         const list = document.getElementById('shiftList');
@@ -9982,13 +9949,15 @@
         const mainBtn = document.getElementById('mainBtn');
         const seatGroup = document.getElementById('seatDisplay') ? document.getElementById('seatDisplay').closest('.input-group') : null;
         const editStuNoSeat = editId ? students.find(x => x.id === editId && !x.seat) : null;   // editing a student whose seat was freed
+        if (banner && banner.dataset.orig === undefined) banner.dataset.orig = banner.innerHTML;
         if (!anyAvailable && (!editId || editStuNoSeat) && config.totalSeats > 0) {
-            if (banner) banner.style.display = 'block';
-            if (joinBtn) joinBtn.style.display = 'block';
+            const onList = editStuNoSeat ? (waitingList || []).find(w => w.status === 'waiting' && w.existingStudentId === editStuNoSeat.id) : null;
+            if (banner) { banner.innerHTML = onList ? wlInfoHtml(onList) : banner.dataset.orig; banner.style.display = 'block'; }
+            if (joinBtn) joinBtn.style.display = onList ? 'none' : 'block';
             if (mainBtn) mainBtn.style.display = 'none';
             if (seatGroup) seatGroup.style.display = 'none';
         } else {
-            if (banner) banner.style.display = 'none';
+            if (banner) { banner.style.display = 'none'; if (banner.dataset.orig !== undefined) banner.innerHTML = banner.dataset.orig; }
             if (joinBtn) joinBtn.style.display = 'none';
             if (mainBtn) mainBtn.style.display = 'block';
             if (seatGroup) seatGroup.style.display = 'block';
@@ -14789,6 +14758,22 @@ function subAskAutoRenew(req, cb){
             onConfirm: reason => seatFreeStudent(id, reason)
         });
     }
+    // Waiting List details of a student who is already on the list (shown instead of the "Join Waiting List" button)
+    function wlInfoHtml(w) {
+        const sameShift = (waitingList || []).filter(x => x.status === 'waiting' && x.shift === w.shift).sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt));
+        const pos = sameShift.findIndex(x => x.id === w.id) + 1;
+        const sh = config.shifts.find(x => x.id === w.shift);
+        const row = (l, v) => '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #fde6c8;font-size:0.76rem;"><span style="flex:0 0 38%;color:#92400e;font-weight:700;">' + l + '</span><span style="flex:1;min-width:0;font-weight:800;color:#431407;word-break:break-word;">' + v + '</span></div>';
+        return '<div style="font-weight:800;font-size:0.84rem;margin-bottom:6px;">\u23f3 Already on the Waiting List</div>'
+            + '<div style="font-size:0.74rem;margin-bottom:8px;line-height:1.5;">A seat will be allotted automatically as soon as one becomes free in this shift.</div>'
+            + row('Waiting List ID', prEsc(w.id))
+            + row('Name', prEsc(w.name || ''))
+            + row('Mobile', prEsc(w.mobile || ''))
+            + row('Shift', prEsc(w.shiftName || '') + (sh && sh.start && sh.end ? ' (' + time12(sh.start) + ' - ' + time12(sh.end) + ')' : ''))
+            + row('Position (this shift)', '#' + (pos || '-') + ' of ' + sameShift.length)
+            + row('Joined on', formatAppDate(w.requestedAt) + ', ' + formatAppTime(w.requestedAt));
+    }
+
     // ===== After a seat was freed: "Choose another seat" (proper seat grid) or, if the shift is full, Waiting List =====
     let reseatStudentId = null;
     function reseatFreeCount(sh, studentId) {
@@ -14805,8 +14790,12 @@ function subAskAutoRenew(req, cb){
         reseatStudentId = id;
         document.getElementById('reseat-student-line').textContent = st.name + ' (' + (st.regNo || '') + ') | ' + sh.name + ' (' + time12(sh.start) + ' - ' + time12(sh.end) + ')';
         const r = reseatFreeCount(sh, st.id);
+        const onList = (waitingList || []).find(w => w.status === 'waiting' && w.existingStudentId === st.id);
         let html;
-        if (r.free > 0) {
+        if (onList) {
+            html = '<div style="background:#fff7ed;border:1px solid #fb923c;border-radius:10px;padding:12px 14px;margin-bottom:10px;color:#9a3412;">' + wlInfoHtml(onList) + '</div>'
+                + '<button onclick="closeReseatModal()" style="background:#94a3b8; margin:0;">Close</button>';
+        } else if (r.free > 0) {
             html = seatPickerHtml('reseat-seat', r.busy, 0)
                 + '<div id="err-reseat" style="display:none; color:#dc2626; font-size:0.75rem; font-weight:700; margin-bottom:8px;">Please choose a seat.</div>'
                 + '<div style="display:flex; gap:8px;"><button onclick="closeReseatModal()" style="background:#94a3b8; margin:0; flex:1;">Cancel</button><button onclick="confirmReseat()" style="background:#16a34a; margin:0; flex:2;">✅ Allot this seat</button></div>';
