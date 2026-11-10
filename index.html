@@ -2161,6 +2161,18 @@
     </div>
 </div>
 
+<!-- ===== CHOOSE ANOTHER SEAT MODAL ===== -->
+<div id="reseat-modal" class="modal">
+    <div class="modal-content" style="max-width:420px; text-align:left;">
+        <div style="text-align:center; margin-bottom:10px;">
+            <div style="font-size:2.2rem;">🪑</div>
+            <h3 style="margin:6px 0 0;">Choose another seat</h3>
+        </div>
+        <p id="reseat-student-line" style="font-size:0.8rem; color:var(--grey); margin-bottom:10px; text-align:center;"></p>
+        <div id="reseat-body"></div>
+    </div>
+</div>
+
 <!-- ===== UNBLOCK DASHBOARD MODAL ===== -->
 <div id="unblock-modal" class="modal">
     <div class="modal-content" style="max-width:400px; text-align:left;">
@@ -6775,7 +6787,7 @@
         }
         const dropdown = document.getElementById('shift');
         dropdown.innerHTML = '<option value="">-- Choose a Shift --</option>';
-        config.shifts.forEach(s => { const t = s.start && s.end ? ` (${s.start}-${s.end})` : ""; dropdown.add(new Option(`${s.name}${t} (₹${s.price})`, s.id)); });
+        config.shifts.forEach(s => { const t = s.start && s.end ? ` (${time12(s.start)} - ${time12(s.end)})` : ""; dropdown.add(new Option(`${s.name}${t} (₹${s.price})`, s.id)); });
         renderShiftList();
         updateWaitlistNotifDot();
     }
@@ -7504,14 +7516,26 @@
         } catch (e) { return false; }
     }
     // Was the student's dashboard blocked by the admin at any time during that day's shift? Uses the block/unblock history (blockHistory).
+    // Share (0..1) of [sMs, eMs] during which the admin had the student's dashboard blocked.
+    // The lock label needs the block to cover at least half of the window, so neither a last-minute lock
+    // nor a last-minute unblock can add or hide the label.
+    const ATT_LOCK_MIN_SHARE = 0.5;
+    function attBlockedShare(st, sMs, eMs) {
+        if (!(eMs > sMs)) return 0;
+        const periods = (Array.isArray(st.blockHistory) ? st.blockHistory : []).map(x => ({ from: new Date(x.from).getTime(), to: x.to ? new Date(x.to).getTime() : Infinity }));
+        // block made before history existed: still blocked now, started at blockedAt
+        if (st.isBlocked && st.blockedAt && !periods.some(x => x.to === Infinity)) periods.push({ from: new Date(st.blockedAt).getTime(), to: Infinity });
+        const iv = periods.map(x => [Math.max(x.from, sMs), Math.min(x.to, eMs)]).filter(x => x[1] > x[0]).sort((a, b) => a[0] - b[0]);
+        let total = 0, cs = null, ce = null;
+        iv.forEach(x => { if (cs === null) { cs = x[0]; ce = x[1]; } else if (x[0] <= ce) { ce = Math.max(ce, x[1]); } else { total += ce - cs; cs = x[0]; ce = x[1]; } });
+        if (cs !== null) total += ce - cs;
+        return total / (eMs - sMs);
+    }
     function attBlockedOnDay(st, ds, sh) {
         try {
             const sMs = new Date(ds + 'T' + ((sh && sh.start) || '00:00') + ':00').getTime();
             const eMs = new Date(ds + 'T' + ((sh && sh.end) || '23:59') + ':00').getTime();
-            const periods = (Array.isArray(st.blockHistory) ? st.blockHistory : []).map(x => ({ from: new Date(x.from).getTime(), to: x.to ? new Date(x.to).getTime() : Infinity }));
-            // block made before history existed: still blocked now, started at blockedAt
-            if (st.isBlocked && st.blockedAt && !periods.some(x => x.to === Infinity)) periods.push({ from: new Date(st.blockedAt).getTime(), to: Infinity });
-            return periods.some(x => x.from <= eMs && x.to > eMs);   // still blocked at shift end (unblocked before shift end = no label)
+            return attBlockedShare(st, sMs, eMs) >= ATT_LOCK_MIN_SHARE;   // blocked for at least half of the shift
         } catch (e) { return false; }
     }
     // Status text for PDF rows: base status + every label (plain text, PDF fonts have no emoji)
@@ -7535,9 +7559,7 @@
             const ds = getLocalDateStr(a.date);
             const sMs = new Date(a.entry.time).getTime();
             const eMs = new Date(ds + 'T' + sh.end + ':00').getTime();
-            const periods = (Array.isArray(st.blockHistory) ? st.blockHistory : []).map(x => ({ from: new Date(x.from).getTime(), to: x.to ? new Date(x.to).getTime() : Infinity }));
-            if (st.isBlocked && st.blockedAt && !periods.some(x => x.to === Infinity)) periods.push({ from: new Date(st.blockedAt).getTime(), to: Infinity });
-            return periods.some(x => x.from >= sMs && x.from <= eMs && x.to > eMs);   // locked after entry AND still blocked at shift end
+            return attBlockedShare(st, sMs, eMs) >= ATT_LOCK_MIN_SHARE;   // blocked for at least half of the time between entry and shift end
         } catch (e) { return false; }
     }
     function lockedAfterEntryLabelHtml(a) { return attLockedAfterEntry(a) ? '<br><span style="color:#7c2d12;font-size:0.66rem;font-weight:800;">🔒 Dashboard Locked by admin after entry, exit not possible</span>' : ''; }
@@ -8397,7 +8419,7 @@
         fitLine('stu-display-email', 'Email Address:', s.email, contactSize, 'var(--grey)');
         document.getElementById('stu-display-seat').innerText = "No. " + seatLabel(s.seat);
         const liveShift = config.shifts.find(sh => sh.id === s.shift);
-        const liveShiftDisplay = liveShift ? liveShift.name + (liveShift.start && liveShift.end ? ` (${liveShift.start}-${liveShift.end})` : '') : s.shiftName;
+        const liveShiftDisplay = liveShift ? liveShift.name + (liveShift.start && liveShift.end ? ` (${time12(liveShift.start)} - ${time12(liveShift.end)})` : '') : s.shiftName;
         document.getElementById('stu-display-shift').innerText = liveShiftDisplay;
         document.getElementById('stu-display-regdate').innerText = formatAppDate(s.date);
 
@@ -8505,7 +8527,7 @@
             if (exitBox) exitBox.classList.remove('show');
         } else if (!isShiftStarted) {
             btnAtt.disabled = true; btnAtt.style.background = "#94a3b8";
-            const shiftStartDisplay = currentShiftObj && currentShiftObj.start ? currentShiftObj.start : "";
+            const shiftStartDisplay = currentShiftObj && currentShiftObj.start ? time12(currentShiftObj.start) : "";
             btnAtt.innerText = `Shift not started yet`;
             statusAtt.innerHTML = `<span style="color:#d97706">⏳ Attendance available after shift starts (${shiftStartDisplay})</span>`;
             if (exitBox) exitBox.classList.remove('show');
@@ -9227,12 +9249,53 @@
         if (type === 'photo') photoData = null; else sigData = null;
     }
 
+    // ===== 12-hour time (AM/PM) everywhere: display helper + a 12-hour picker that replaces <input type="time"> =====
+    function time12(t) {
+        if (!t) return '';
+        const m = /^(\d{1,2}):(\d{2})/.exec(String(t)); if (!m) return String(t);
+        let h = parseInt(m[1], 10); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+        return h + ':' + m[2] + ' ' + ap;
+    }
+    function initTime12Pickers(ids) {
+        ids.forEach(function (id) {
+            const inp = document.getElementById(id); if (!inp || inp.dataset.t12) return;
+            inp.dataset.t12 = '1'; inp.type = 'hidden';
+            let val = '';
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex;gap:6px;align-items:center;';
+            const mk = (opts) => { const s = document.createElement('select'); s.style.cssText = 'flex:1;min-width:0;margin:0;padding:10px 6px;'; s.innerHTML = opts; return s; };
+            let ho = '<option value="">Hr</option>', mo = '<option value="">Min</option>';
+            for (let h = 1; h <= 12; h++) ho += '<option value="' + h + '">' + h + '</option>';
+            for (let m = 0; m < 60; m++) mo += '<option value="' + String(m).padStart(2, '0') + '">' + String(m).padStart(2, '0') + '</option>';
+            const sh = mk(ho), sm = mk(mo), sp = mk('<option value="">--</option><option value="AM">AM</option><option value="PM">PM</option>');
+            wrap.appendChild(sh); wrap.appendChild(sm); wrap.appendChild(sp);
+            inp.parentNode.insertBefore(wrap, inp.nextSibling);
+            const sync = () => {
+                const m = /^(\d{1,2}):(\d{2})/.exec(val);
+                if (!m) { sh.value = ''; sm.value = ''; sp.value = ''; return; }
+                let h = parseInt(m[1], 10); sp.value = h >= 12 ? 'PM' : 'AM'; sh.value = String(h % 12 || 12); sm.value = m[2];
+            };
+            const read = () => {
+                if (!sh.value || !sm.value || !sp.value) { val = ''; return; }
+                let h = parseInt(sh.value, 10) % 12; if (sp.value === 'PM') h += 12;
+                val = String(h).padStart(2, '0') + ':' + sm.value;
+            };
+            [sh, sm, sp].forEach(el => el.addEventListener('change', read));
+            Object.defineProperty(inp, 'value', { configurable: true, get: function () { return val; }, set: function (v) { val = v ? String(v) : ''; sync(); } });
+        });
+    }
+
+    (function () {
+        const go = () => initTime12Pickers(['newShiftStart', 'newShiftEnd', 'sh-open-time', 'sh-close-time', 'lf-proc-edit-start', 'lf-proc-edit-end']);
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+    })();
+
     function renderShiftList() {
         const list = document.getElementById('shiftList');
         list.innerHTML = config.shifts.length ? '' : '<p style="font-size:0.82rem; color:#94a3b8; text-align:center; padding:10px 0;">No shifts added yet. Add your first shift below.</p>';
         config.shifts.forEach((s, idx) => {
             const div = document.createElement('div'); div.className = 'shift-item';
-            div.innerHTML = `<div><strong style="font-size:0.9rem;">${s.name}</strong><br><small style="color:var(--grey);">${s.start} - ${s.end} &nbsp;|&nbsp; ₹${s.price}/month</small></div>
+            div.innerHTML = `<div><strong style="font-size:0.9rem;">${s.name}</strong><br><small style="color:var(--grey);">${time12(s.start)} - ${time12(s.end)} &nbsp;|&nbsp; ₹${s.price}/month</small></div>
                 <div class="shift-controls">
                     <button class="btn-edit-s" onclick="editShift('${s.id}')">Edit</button>
                     <button class="btn-del-s" onclick="removeShift(${idx})">Remove</button>
@@ -9271,6 +9334,7 @@
         const price = document.getElementById('newShiftPrice').value;
         const editId = document.getElementById('editShiftId').value;
         if (!name || !price || !start || !end) { alert("Please fill all shift details!"); return; }
+        if (end <= start) { alert("End time must be later than the start time.\n\nA shift cannot run past midnight, because the attendance day changes at 12:00 AM. For a late shift, end it by 11:59 PM."); return; }
         if (editId) {
             const idx = config.shifts.findIndex(x => x.id === editId);
             config.shifts[idx] = { ...config.shifts[idx], name, start, end, price: parseInt(price) };
@@ -9409,7 +9473,7 @@
         document.getElementById('feeDisplayUPI').innerText = "Pay to: " + config.upi;
         const dropdown = document.getElementById('shift');
         dropdown.innerHTML = '<option value="">-- Choose a Shift --</option>';
-        config.shifts.forEach(s => { if (!db[s.id]) db[s.id] = []; const t = s.start && s.end ? ` (${s.start}-${s.end})` : ""; dropdown.add(new Option(`${s.name}${t} (₹${s.price})`, s.id)); });
+        config.shifts.forEach(s => { if (!db[s.id]) db[s.id] = []; const t = s.start && s.end ? ` (${time12(s.start)} - ${time12(s.end)})` : ""; dropdown.add(new Option(`${s.name}${t} (₹${s.price})`, s.id)); });
         refreshLibraryIdField();
         saveToLocal(); alert("System Configured Successfully!");
         switchTab('booking-sec', document.querySelectorAll('#admin-bottom-nav .nav-item')[1]);
@@ -9531,7 +9595,7 @@
         document.querySelectorAll('#public-reg-modal .error-msg').forEach(e => e.style.display = 'none');
         const pv = document.getElementById('pr-photo-preview'); pv.src = ''; pv.style.display = 'none';
         const sel = document.getElementById('pr-shift');
-        sel.innerHTML = '<option value="">-- Choose a Shift --</option>' + (c.shifts || []).map(sh => '<option value="' + sh.id + '">' + prEsc(sh.name) + (sh.start && sh.end ? ' (' + sh.start + '-' + sh.end + ')' : '') + ' (₹' + sh.price + ')</option>').join('');
+        sel.innerHTML = '<option value="">-- Choose a Shift --</option>' + (c.shifts || []).map(sh => '<option value="' + sh.id + '">' + prEsc(sh.name) + (sh.start && sh.end ? ' (' + time12(sh.start) + ' - ' + time12(sh.end) + ')' : '') + ' (₹' + sh.price + ')</option>').join('');
         const pre = document.getElementById('csa-shift-select'); if (pre && pre.value) sel.value = pre.value;
         document.getElementById('pr-paymode').value = 'Online'; document.getElementById('pr-payapp').value = 'PhonePe'; document.getElementById('pr-otherapp-wrap').style.display = 'none';
         document.getElementById('pr-step1').style.display = 'block'; document.getElementById('pr-step2').style.display = 'none'; document.getElementById('pr-done').style.display = 'none';
@@ -9917,7 +9981,8 @@
         const joinBtn = document.getElementById('joinWaitlistBtn');
         const mainBtn = document.getElementById('mainBtn');
         const seatGroup = document.getElementById('seatDisplay') ? document.getElementById('seatDisplay').closest('.input-group') : null;
-        if (!anyAvailable && !editId && config.totalSeats > 0) {
+        const editStuNoSeat = editId ? students.find(x => x.id === editId && !x.seat) : null;   // editing a student whose seat was freed
+        if (!anyAvailable && (!editId || editStuNoSeat) && config.totalSeats > 0) {
             if (banner) banner.style.display = 'block';
             if (joinBtn) joinBtn.style.display = 'block';
             if (mainBtn) mainBtn.style.display = 'none';
@@ -10228,6 +10293,25 @@
             if (seatNo === null) continue; // no free seat for this entry's shift right now — leave waiting, don't skip permanently
             // Reserve -> Allocate
             const sInfo = config.shifts.find(x => x.id === entry.shift);
+            if (entry.existingStudentId) {
+                // an already-registered student (seat was freed) waiting for a seat: give the seat back to the SAME record
+                const ex = students.find(x => x.id === entry.existingStudentId);
+                if (!ex || ex.seat) {
+                    entry.status = 'cancelled'; entry.removedBy = 'System';
+                    logAllocation('CANCELLED', entry, null, entry.shiftName, trigger, ex ? 'Student already has a seat' : 'Student record no longer exists');
+                    changed = true; continue;
+                }
+                ex.seat = seatNo;
+                if (sInfo && ex.shift !== entry.shift) { ex.shift = entry.shift; ex.shiftName = sInfo.name; }
+                ex.name = entry.name || ex.name; ex.fname = entry.fname || ex.fname; ex.mobile = entry.mobile || ex.mobile; ex.email = entry.email || ex.email; ex.dob = entry.dob || ex.dob; if (entry.photo) ex.photo = entry.photo;
+                if (!db[ex.shift]) db[ex.shift] = [];
+                db[ex.shift].push(seatNo);
+                ex.seatFreedInfo = null;
+                ex.seatReallotLog = (ex.seatReallotLog || []).concat({ seat: seatNo, seatLabel: seatLabel(seatNo), date: new Date().toISOString(), fromWaitlist: entry.id });
+                entry.status = 'allocated'; entry.allocatedSeat = seatNo; entry.regNo = ex.regNo; entry.allocatedAt = new Date().toISOString();
+                logAllocation('AUTO ALLOCATION', entry, seatNo, ex.shiftName, trigger, 'Seat re-allotted to existing student ' + ex.regNo);
+                changed = true; continue;
+            }
             // The Waiting List ID becomes the Registration Number: same 10 digits, prefix
             // swapped from WL to REG (e.g. WL1717262668 → REG1717262668). Falls back to a
             // freshly generated number only in the rare case that digits were somehow already
@@ -10274,6 +10358,10 @@
         if (!sid) { err = true; }
         if (err) { alert("Please go back and complete your details before joining the Waiting List."); return; }
         const sInfo = config.shifts.find(x => x.id === sid);
+        const editIdW = document.getElementById('editId') ? document.getElementById('editId').value : '';
+        const exStu = editIdW ? students.find(x => x.id === editIdW) : null;      // editing an existing student (seat freed)
+        if (exStu && exStu.seat) { alert('This student already has a seat.'); return; }
+        if (exStu && (waitingList || []).some(w => w.status === 'waiting' && w.existingStudentId === exStu.id)) { alert('This student is already on the Waiting List.'); return; }
         const method = document.getElementById('payMethod').value;
         let pApp = document.getElementById('payApp').value, tId = document.getElementById('txnId').value.trim();
         if (method === "Online" && pApp === "Other") pApp = document.getElementById('otherAppName').value.trim();
@@ -10298,6 +10386,7 @@
             requestedAt: new Date().toISOString(),
             status: 'waiting'
         };
+        if (exStu) entry.existingStudentId = exStu.id;   // the seat will go back to this same student record
         waitingList.push(entry);
         saveToLocal();
         const position = waitingList.filter(w => w.status === 'waiting' && w.shift === sid).findIndex(w => w.id === entry.id) + 1;
@@ -11156,7 +11245,7 @@
                     <button class="btn-att-h" onclick='openReportModal(${JSON.stringify(s)})'>Attendance</button>
                     <button class="btn-del-h" onclick="deleteRecord('${s.id}')">🗑️ Delete</button>
                     <span style="flex-basis:100%;height:0;margin-top:-8px;"></span>
-                    <button class="btn-seatfree-h" ${s.seat ? '' : 'disabled'} onclick="openSeatFreeModal('${s.id}')">${s.seat ? 'Seat Free' : '✔ Seat Freed'}</button>
+                    <button class="btn-seatfree-h" onclick="${s.seat ? 'openSeatFreeModal' : 'openReseatModal'}('${s.id}')">${s.seat ? 'Seat Free' : '🪑 Choose another seat'}</button>
                     ${s.isBlocked
                         ? `<button class="btn-blk-h" style="background:#16a34a;" onclick="unblockStudentDashboard('${s.id}')">🔓 Unblock Dashboard</button>`
                         : `<button class="btn-blk-h" style="background:#b45309;" onclick="openBlockModal('${s.id}')">🔒 Block Dashboard</button>`}
@@ -14700,6 +14789,61 @@ function subAskAutoRenew(req, cb){
             onConfirm: reason => seatFreeStudent(id, reason)
         });
     }
+    // ===== After a seat was freed: "Choose another seat" (proper seat grid) or, if the shift is full, Waiting List =====
+    let reseatStudentId = null;
+    function reseatFreeCount(sh, studentId) {
+        const busy = prAdminBusySeats(sh, studentId);
+        const groups = (config.seatGroups && config.seatGroups.length) ? config.seatGroups : [{ capacity: config.totalSeats }];
+        const total = groups.reduce((a, g) => a + g.capacity, 0);
+        let free = 0; for (let n = 1; n <= total; n++) if (!busy.has(n)) free++;
+        return { busy: busy, free: free };
+    }
+    function openReseatModal(id) {
+        const st = students.find(x => x.id === id); if (!st || st.seat) return;
+        const sh = config.shifts.find(x => x.id === st.shift);
+        if (!sh) { alert('This shift no longer exists in your configuration.'); return; }
+        reseatStudentId = id;
+        document.getElementById('reseat-student-line').textContent = st.name + ' (' + (st.regNo || '') + ') | ' + sh.name + ' (' + time12(sh.start) + ' - ' + time12(sh.end) + ')';
+        const r = reseatFreeCount(sh, st.id);
+        let html;
+        if (r.free > 0) {
+            html = seatPickerHtml('reseat-seat', r.busy, 0)
+                + '<div id="err-reseat" style="display:none; color:#dc2626; font-size:0.75rem; font-weight:700; margin-bottom:8px;">Please choose a seat.</div>'
+                + '<div style="display:flex; gap:8px;"><button onclick="closeReseatModal()" style="background:#94a3b8; margin:0; flex:1;">Cancel</button><button onclick="confirmReseat()" style="background:#16a34a; margin:0; flex:2;">✅ Allot this seat</button></div>';
+        } else {
+            html = '<div style="font-size:0.78rem; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 12px; margin-bottom:10px; line-height:1.5;">⛔ No seat is available in this shift right now. You can add this student to the Waiting List — a seat is allotted automatically as soon as one becomes free, and the student\'s record, fees and attendance stay as they are.</div>'
+                + '<button onclick="reseatJoinWaitlist()" style="background:#f59e0b; margin-bottom:8px;">⏳ Join Waiting List</button>'
+                + '<button onclick="closeReseatModal()" style="background:#94a3b8; margin:0;">Cancel</button>';
+        }
+        document.getElementById('reseat-body').innerHTML = html;
+        document.getElementById('reseat-modal').style.display = 'flex';
+    }
+    function closeReseatModal() { document.getElementById('reseat-modal').style.display = 'none'; reseatStudentId = null; }
+    function confirmReseat() {
+        const st = students.find(x => x.id === reseatStudentId); if (!st || st.seat) { closeReseatModal(); return; }
+        const sh = config.shifts.find(x => x.id === st.shift); if (!sh) return;
+        const pick = parseInt((document.getElementById('reseat-seat') || {}).value, 10);
+        if (!pick) { document.getElementById('err-reseat').style.display = 'block'; return; }
+        if (prAdminBusySeats(sh, st.id).has(pick)) { alert('That seat has just been taken for overlapping shift times. Please choose another seat.'); openReseatModal(st.id); return; }
+        if (!db[st.shift]) db[st.shift] = [];
+        db[st.shift].push(pick);
+        st.seat = pick; st.seatFreedInfo = null;
+        st.seatReallotLog = (st.seatReallotLog || []).concat({ seat: pick, seatLabel: seatLabel(pick), date: new Date().toISOString() });
+        saveToLocal(); closeReseatModal(); renderHistory();
+        alert(st.name + ' has been allotted seat ' + seatLabel(pick) + '.');
+    }
+    function reseatJoinWaitlist() {
+        const st = students.find(x => x.id === reseatStudentId); if (!st || st.seat) { closeReseatModal(); return; }
+        const sh = config.shifts.find(x => x.id === st.shift); if (!sh) return;
+        if (reseatFreeCount(sh, st.id).free > 0) { alert('A seat is available now — please choose a seat instead.'); openReseatModal(st.id); return; }
+        if ((waitingList || []).some(w => w.status === 'waiting' && w.existingStudentId === st.id)) { alert('This student is already on the Waiting List.'); return; }
+        const wlId = 'WL' + generateUniqueRegDigits();
+        waitingList.push({ id: wlId, existingStudentId: st.id, name: st.name, fname: st.fname, mobile: st.mobile, email: st.email, dob: st.dob, photo: st.photo, shift: st.shift, shiftName: sh.name, amount: sh.price, mode: st.mode || 'Cash', payApp: st.payApp || 'N/A', txnId: st.txnId || 'N/A', requestedAt: new Date().toISOString(), status: 'waiting' });
+        saveToLocal(); closeReseatModal();
+        const pos = waitingList.filter(w => w.status === 'waiting' && w.shift === st.shift).findIndex(w => w.id === wlId) + 1;
+        alert('Added to the Waiting List.\n\nWaiting List ID: ' + wlId + '\nShift: ' + sh.name + '\nPosition (this shift): ' + pos + '\n\nA seat will be allotted automatically when one becomes free.');
+        renderHistory(); try { updateWaitlistNotifDot(); } catch (e) {}
+    }
     function seatFreeStudent(id, reason) {
         const s = students.find(x => x.id === id); if (!s || !s.seat) return;
         const info = { seat: s.seat, seatLabel: seatLabel(s.seat), shift: s.shift, shiftName: s.shiftName, reason: reason, date: new Date().toISOString() };
@@ -14767,7 +14911,7 @@ function subAskAutoRenew(req, cb){
                 const pillW = isDemo ? 19 : 17, pillX = (PANEL_W - pillW) / 2, pillY = 34, pillTxt = isDemo ? 'DEMO TRIAL' : 'VERIFIED';   // badge sits under the photo
         const fields = [
             { label: "Reg No.", value: isDemo ? "Pending (Demo)" : (s.regNo || "N/A") },
-            { label: "Shift", value: (()=>{ const sh=config.shifts.find(x=>x.id===s.shift); return sh?(sh.name+(sh.start&&sh.end?` (${sh.start}-${sh.end})`:'')):s.shiftName||"N/A"; })().substring(0, 28) },
+            { label: "Shift", value: (()=>{ const sh=config.shifts.find(x=>x.id===s.shift); return sh?(sh.name+(sh.start&&sh.end?` (${time12(sh.start)} - ${time12(sh.end)})`:'')):s.shiftName||"N/A"; })().substring(0, 28) },
             { label: "Seat No.", value: String(s.seat ? seatLabel(s.seat) : "N/A") },
             { label: isDemo ? "Demo Start" : "Reg. Date", value: formatAppDate(isDemo ? s.demoDate : s.date) },
         ];
@@ -15242,7 +15386,7 @@ function subAskAutoRenew(req, cb){
 
         // ----- ENTRY (nothing marked yet today) -----
         if (!isShiftStarted) {
-            markAttResultMsg(`⏳ Attendance is available only after your shift starts${sh && sh.start ? ' (' + sh.start + ')' : ''}.`, false);
+            markAttResultMsg(`⏳ Attendance is available only after your shift starts${sh && sh.start ? ' (' + time12(sh.start) + ')' : ''}.`, false);
             submitBtn.disabled = false;
             return;
         }
@@ -19067,7 +19211,7 @@ The **Library Lost & Found service is provided free of charge**. The Library doe
         host.innerHTML = (config.shifts || []).map(sh => `
             <label style="display:flex; align-items:center; gap:6px; background:#fff; border:1.5px solid var(--border); border-radius:20px; padding:6px 12px; cursor:pointer; font-size:0.75rem; font-weight:700;">
                 <input type="checkbox" class="notice-att-shift-chk" value="${sh.id}" style="width:auto; margin:0;">
-                ${sh.name}${sh.start && sh.end ? ` (${sh.start}-${sh.end})` : ''}
+                ${sh.name}${sh.start && sh.end ? ` (${time12(sh.start)} - ${time12(sh.end)})` : ''}
             </label>`).join('') || '<p style="font-size:0.72rem; color:var(--grey);">No shifts configured yet.</p>';
     }
 
