@@ -2165,8 +2165,7 @@
 <div id="reseat-modal" class="modal">
     <div class="modal-content" style="max-width:420px; text-align:left;">
         <div style="text-align:center; margin-bottom:10px;">
-            <div style="font-size:2.2rem;">🪑</div>
-            <h3 style="margin:6px 0 0;">Choose another seat</h3>
+            <h3 style="margin:0;">Choose another seat</h3>
         </div>
         <p id="reseat-student-line" style="font-size:0.8rem; color:var(--grey); margin-bottom:10px; text-align:center;"></p>
         <div id="reseat-body"></div>
@@ -11214,7 +11213,7 @@
                     <button class="btn-att-h" onclick='openReportModal(${JSON.stringify(s)})'>Attendance</button>
                     <button class="btn-del-h" onclick="deleteRecord('${s.id}')">🗑️ Delete</button>
                     <span style="flex-basis:100%;height:0;margin-top:-8px;"></span>
-                    <button class="btn-seatfree-h" onclick="${s.seat ? 'openSeatFreeModal' : 'openReseatModal'}('${s.id}')">${s.seat ? 'Seat Free' : '🪑 Choose another seat'}</button>
+                    <button class="btn-seatfree-h" onclick="${s.seat ? 'openSeatFreeModal' : 'openReseatModal'}('${s.id}')">${s.seat ? 'Seat Free' : 'Choose another seat'}</button>
                     ${s.isBlocked
                         ? `<button class="btn-blk-h" style="background:#16a34a;" onclick="unblockStudentDashboard('${s.id}')">🔓 Unblock Dashboard</button>`
                         : `<button class="btn-blk-h" style="background:#b45309;" onclick="openBlockModal('${s.id}')">🔒 Block Dashboard</button>`}
